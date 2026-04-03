@@ -1,60 +1,75 @@
 import { textConverter } from "../services/textConverter.service.js";
+import fs from "fs/promises";
 
-
-const uploadImage = (req, res) => {
-    const files = req.files;
-
-    if (!files || files.length === 0) {
-        return res.status(400).json({
-            success: false,
-            message: "No files received! Please ensure you are using 'photos' as the field name and sending 'form-data'."
-        });
-    }
-
-    console.log("Uploaded files:", files);
-
-    res.status(200).json({
-        success: true,
-        message: "File(s) uploaded successfully",
-        data: files
-    })
-}
-
+/**
+ * Optimized text conversion controller
+ * - Handles parallel file processing
+ * - Cleans up uploaded files
+ * - Fixes multiple response header issue
+ * - Returns only fileName and text as requested
+ */
 const convertText = async (req, res) => {
     const files = req.files;
 
     if (!files || files.length === 0) {
         return res.status(400).json({
-            success: false,
-            message: "No files received! Please ensure you are using 'photos' as the field name and sending 'form-data'."
+            error: "No files received! Please ensure you are using 'photos' as the field name and sending 'form-data'."
         });
     }
 
-    try {
-        const results = [];
-        for (const file of files) {
-            const rawText = await textConverter(file.path);
-            
-            
-            const cleanText = rawText.replace(/[\n\r]+/g, ' ').replace(/\s+/g, ' ').trim();
+    console.log(`Processing ${files.length} files...`);
 
-            results.push({
-                fileName: file.originalname,
-                text: cleanText
-            });
-        }
+    try {
+        // Parallel processing of all uploaded files
+        const processedResults = await Promise.all(
+            files.map(async (file) => {
+                try {
+                    // Correctly await the OCR service
+                    const rawText = await textConverter(file.path);
+                    
+                    // Clean extracted text (remove multiple newlines and spaces)
+                    const cleanText = rawText
+                        .replace(/[\n\r]+/g, ' ')
+                        .replace(/\s+/g, ' ')
+                        .trim();
+
+                    return {
+                        fileName: file.originalname,
+                        text: cleanText
+                    };
+                } catch (err) {
+                    console.error(`Error processing file ${file.originalname}:`, err.message);
+                    return {
+                        fileName: file.originalname,
+                        text: "OCR failed for this file"
+                    };
+                } finally {
+                    // Automatic cleanup: Delete file regardless of success/error
+                    try {
+                        await fs.unlink(file.path);
+                    } catch (unlinkErr) {
+                        console.error(`Failed to delete file ${file.path}:`, unlinkErr.message);
+                    }
+                }
+            })
+        );
 
         // Return only the results array as requested
-        res.status(200).json(results);
+        return res.status(200).json(processedResults);
 
     } catch (error) {
-        console.error("Conversion Error:", error);
-        res.status(500).json({
-            error: "Error during text conversion",
+        console.error("Global Conversion Error:", error);
+        
+        // Ensure cleanup even on global failure (though mapped logic should handle it)
+        for (const file of files) {
+            try { await fs.unlink(file.path); } catch {}
+        }
+
+        return res.status(500).json({
+            error: "Critical error during text conversion",
             details: error.message
         });
     }
 }
 
-
-export { uploadImage, convertText };
+export { convertText };

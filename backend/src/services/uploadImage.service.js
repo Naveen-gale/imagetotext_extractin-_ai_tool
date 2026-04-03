@@ -1,18 +1,28 @@
 import multer from "multer";
 
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, 'uploads/');
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, file.fieldname + '-' + uniqueSuffix + '-' + file.originalname);
+    }
+});
+
 const upload = multer({ 
-    dest: 'uploads/',
+    storage,
     fileFilter: (req, file, cb) => {
-        const allowedMimeTypes = ['image/jpeg', 'image/png','application/pdf', 'text/plain'];
+        // Tesseract.js handles common image formats. PDF/TXT are not natively supported by basic tesseract.js recognize
+        const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
         if (allowedMimeTypes.includes(file.mimetype)) {
             cb(null, true);
         } else {
-            cb(new Error('Invalid file type! Supported formats: JPEG, PNG, PDF, TXT'), false);
+            cb(new Error(`Invalid file type: ${file.mimetype}. Supported formats: JPEG, PNG, WEBP`), false);
         }
     }
 })
 
 
 export const uploadImages = upload.array('photos', 12);
-
 

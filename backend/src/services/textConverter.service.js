@@ -1,3 +1,4 @@
+
 import Tesseract from "tesseract.js";
 
 export const textConverter = async (imagePath) => {
