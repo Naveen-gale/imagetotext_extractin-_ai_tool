@@ -1,0 +1,10 @@
+{
+  "name": "imagetopdf-root",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "concurrently \"npm run dev --prefix frontend\" \"npm start --prefix backend\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

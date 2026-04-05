@@ -1,75 +1,157 @@
-import { textConverter } from "../services/textConverter.service.js";
+import { extractTextFromImage, summarizeText, translateText, fixGrammar, extractKeyInfo } from "../services/groq.service.js";
+import { uploadToImageKit } from "../services/imagekit.service.js";
+import { extractDocumentText, formatDocumentTextWithAI } from "../services/document.service.js";
 import fs from "fs/promises";
 
 /**
- * Optimized text conversion controller
- * - Handles parallel file processing
- * - Cleans up uploaded files
- * - Fixes multiple response header issue
- * - Returns only fileName and text as requested
+ * POST /api/v1/convert
+ * Upload images or docs → extract text
  */
-const convertText = async (req, res) => {
+export const convertImages = async (req, res) => {
     const files = req.files;
 
     if (!files || files.length === 0) {
         return res.status(400).json({
-            error: "No files received! Please ensure you are using 'photos' as the field name and sending 'form-data'."
+            success: false,
+            error: "No files received. Use 'photos' as the field name with form-data."
         });
     }
 
-    console.log(`Processing ${files.length} files...`);
+    console.log(`[Convert] Processing ${files.length} file(s)...`);
 
     try {
-        // Parallel processing of all uploaded files
-        const processedResults = await Promise.all(
+        const results = await Promise.all(
             files.map(async (file) => {
+                let imagekitData = null;
                 try {
-                    // Correctly await the OCR service
-                    const rawText = await textConverter(file.path);
-                    
-                    // Clean extracted text (remove multiple newlines and spaces)
-                    const cleanText = rawText
-                        .replace(/[\n\r]+/g, ' ')
-                        .replace(/\s+/g, ' ')
-                        .trim();
+                    const ext = file.originalname.split(".").pop().toLowerCase();
+                    const isImage = ["jpg", "jpeg", "png", "webp", "gif"].includes(ext);
+
+                    // 1. Upload to ImageKit (only doing this for images visually, to avoid heavy PDF hosting)
+                    if (isImage) {
+                        try {
+                            imagekitData = await uploadToImageKit(file.path, file.originalname);
+                        } catch (uploadErr) {
+                            console.warn(`ImageKit upload failed for ${file.originalname}:`, uploadErr.message);
+                        }
+                    }
+
+                    // 2. Extract Text Based on Document Type
+                    let extractedText = "";
+                    if (isImage) {
+                        extractedText = await extractTextFromImage(file.path);
+                    } else {
+                        // Extract plain text locally first from PDF/DOC/PPT
+                        const rawText = await extractDocumentText(file.path, file.originalname);
+                        // Send through AI formatter 
+                        extractedText = await formatDocumentTextWithAI(rawText);
+                    }
 
                     return {
+                        success: true,
                         fileName: file.originalname,
-                        text: cleanText
+                        text: extractedText || "[NO TEXT FOUND]",
+                        wordCount: (extractedText || "").split(/\s+/).filter(Boolean).length,
+                        charCount: (extractedText || "").length,
+                        imageUrl: imagekitData?.url || null,
+                        imageFileId: imagekitData?.fileId || null,
+                        thumbnailUrl: imagekitData?.thumbnailUrl || null,
                     };
                 } catch (err) {
-                    console.error(`Error processing file ${file.originalname}:`, err.message);
+                    console.error(`Error processing ${file.originalname}:`, err.message);
                     return {
+                        success: false,
                         fileName: file.originalname,
-                        text: "OCR failed for this file"
+                        text: "",
+                        error: err.message,
+                        imageUrl: imagekitData?.url || null,
                     };
                 } finally {
-                    // Automatic cleanup: Delete file regardless of success/error
-                    try {
-                        await fs.unlink(file.path);
-                    } catch (unlinkErr) {
-                        console.error(`Failed to delete file ${file.path}:`, unlinkErr.message);
-                    }
+                    // Clean up temp file
+                    try { await fs.unlink(file.path); } catch {}
                 }
             })
         );
 
-        // Return only the results array as requested
-        return res.status(200).json(processedResults);
+        return res.status(200).json({
+            success: true,
+            count: results.length,
+            results,
+        });
 
     } catch (error) {
-        console.error("Global Conversion Error:", error);
-        
-        // Ensure cleanup even on global failure (though mapped logic should handle it)
+        console.error("[Convert] Fatal error:", error);
         for (const file of files) {
             try { await fs.unlink(file.path); } catch {}
         }
-
         return res.status(500).json({
-            error: "Critical error during text conversion",
+            success: false,
+            error: "Critical error during processing",
             details: error.message
         });
     }
-}
+};
 
-export { convertText };
+/**
+ * POST /api/v1/ai/summarize
+ */
+export const summarize = async (req, res) => {
+    const { text } = req.body;
+    if (!text || text.trim().length === 0) {
+        return res.status(400).json({ success: false, error: "No text provided." });
+    }
+    try {
+        const summary = await summarizeText(text);
+        return res.status(200).json({ success: true, summary });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+/**
+ * POST /api/v1/ai/translate
+ */
+export const translate = async (req, res) => {
+    const { text, targetLanguage } = req.body;
+    if (!text || !targetLanguage) {
+        return res.status(400).json({ success: false, error: "text and targetLanguage are required." });
+    }
+    try {
+        const translated = await translateText(text, targetLanguage);
+        return res.status(200).json({ success: true, translated, targetLanguage });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+/**
+ * POST /api/v1/ai/fix-grammar
+ */
+export const grammar = async (req, res) => {
+    const { text } = req.body;
+    if (!text || text.trim().length === 0) {
+        return res.status(400).json({ success: false, error: "No text provided." });
+    }
+    try {
+        const fixed = await fixGrammar(text);
+        return res.status(200).json({ success: true, fixed });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+/**
+ * POST /api/v1/ai/extract-info
+ */
+export const extractInfo = async (req, res) => {
+    const { text } = req.body;
+    if (!text || text.trim().length === 0) {
+        return res.status(400).json({ success: false, error: "No text provided." });
+    }
+    try {
+        const info = await extractKeyInfo(text);
+        return res.status(200).json({ success: true, info });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
