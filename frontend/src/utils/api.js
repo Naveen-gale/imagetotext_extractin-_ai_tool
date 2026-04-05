@@ -1,5 +1,9 @@
 // All API calls — uses Vite proxy locally (/api → http://localhost:5000/api), or Render URL in prod
-const BASE = import.meta.env.VITE_API_BASE_URL || "/api/v1";
+let BASE = import.meta.env.VITE_API_BASE_URL || "/api/v1";
+// Auto-fix if the user forgot to add /api/v1 to the end of their Render URL in Vercel
+if (BASE.startsWith("http") && !BASE.endsWith("/api/v1")) {
+  BASE = BASE.replace(/\/+$/, "") + "/api/v1";
+}
 
 export async function extractTextFromImages(files) {
   const fd = new FormData();
