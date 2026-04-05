@@ -18,7 +18,7 @@ export default function App() {
       <footer className="footer">
         <p>
           Built with <span>VisionText AI</span> ·{" "}
-          <span>developed by Naveen</span>
+          <span>developed by Naveen and Vivek</span>
         </p>
       </footer>
 
