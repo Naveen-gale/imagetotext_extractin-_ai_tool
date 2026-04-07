@@ -19,7 +19,34 @@ export const extractDocumentText = async (filePath, originalName) => {
         } 
         else if (ext === "docx" || ext === "doc" || ext === "pptx" || ext === "ppt") {
             const op = createRequire(import.meta.url)("officeparser");
-            return await op.parseOffice(filePath);
+            const parsed = await op.parseOffice(filePath, { toText: true });
+            
+            // Fallback in case officeparser still returns an AST object
+            if (typeof parsed === 'object' && parsed !== null) {
+                try {
+                    let extracted = [];
+                    const extractStrings = (node) => {
+                        if (Array.isArray(node)) {
+                            node.forEach(extractStrings);
+                        } else if (node && typeof node === 'object') {
+                            if (node.type === 'text' && typeof node.text === 'string') {
+                                extracted.push(node.text);
+                            } else {
+                                Object.values(node).forEach(extractStrings);
+                            }
+                        }
+                    };
+                    extractStrings(parsed);
+                    
+                    if (extracted.length > 0) {
+                        return extracted.join(' ');
+                    }
+                    return JSON.stringify(parsed);
+                } catch(e) {
+                    return String(parsed);
+                }
+            }
+            return parsed;
         }
         else if (ext === "txt") {
             return await fs.readFile(filePath, "utf-8");
