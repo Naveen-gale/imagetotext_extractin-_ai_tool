@@ -184,32 +184,36 @@ export const extractKeyInfo = async (text) => {
  * @param {number} slideCount - Requested number of slides
  */
 export const generatePPTContent = async (prompt, base64Image = null, mimeType = "image/jpeg", slideCount = 8) => {
-    const systemPrompt = `You are an expert presentation designer. Generate content for a PowerPoint presentation.
-Respond ONLY with a valid JSON array. Do NOT include markdown, code blocks, or any extra text.
-Each element in the array is a slide object with this exact shape:
+    const systemPrompt = `You are an expert presentation designer. Generate content for a professional powerpoint.
+Respond ONLY with a valid JSON array. Do NOT include markdown, code blocks, or extra text.
+Each element is a slide object:
 {
   "type": "title" | "content" | "image" | "two-column" | "quote" | "timeline" | "stats",
   "title": "Slide Title",
-  "subtitle": "Optional subtitle (for title slides)",
+  "subtitle": "Subtitle (Title slides only)",
   "bullets": ["Point 1", "Point 2", "Point 3"],
-  "quote": "A relevant quote (for quote slides)",
-  "author": "Quote author name",
+  "quote": "A relevant quote",
+  "author": "Quote author",
   "leftColumn": { "heading": "Left", "bullets": ["..."] },
   "rightColumn": { "heading": "Right", "bullets": ["..."] },
   "stats": [{"label": "...", "value": "..."}, ...],
   "timelineItems": [{"year": "2020", "event": "Something happened"}, ...],
-  "speakerNotes": "Brief presenter notes"
+  "imageKeyword": "Specific descriptive keyword for a professional photo representing this slide's topic (ONLY if the user prompt asks for images or if it adds visual value)",
+  "speakerNotes": "Presenter notes"
 }
-Generate exactly ${slideCount} slides. First slide must be type "title". Last slide should be a summary/conclusion.
-Make the content professional, engaging, and well-structured.`;
+Guidelines:
+1. Generate EXACTLY ${slideCount} slides.
+2. Slide 1 MUST be type "title".
+3. Slide ${slideCount} MUST be a "Thank You" slide (type: "title", title: "Thank You", subtitle: "Any questions?").
+4. If the user prompt mentions "images" or "photos", provide a descriptive 'imageKeyword' for every relevant slide.
+5. Content must be highly accurate, professional, and well-structured.`;
 
     const userMessages = [];
-
     if (base64Image) {
         userMessages.push({
             role: "user",
             content: [
-                { type: "text", text: `Create a ${slideCount}-slide presentation about: ${prompt}\n\nUse the provided image as context/reference for the content where relevant.` },
+                { type: "text", text: `Create a ${slideCount}-slide presentation about: ${prompt}` },
                 { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Image}` } },
             ],
         });
@@ -236,17 +240,27 @@ Make the content professional, engaging, and well-structured.`;
     });
 
     const raw = response.choices[0]?.message?.content || "[]";
-
-    // Extract JSON from possible markdown wrapper
     const jsonMatch = raw.match(/(\[\s*\{[\s\S]*\}\s*\])/m)
         || raw.match(/```(?:json)?\s*([\s\S]*?)```/);
 
     const jsonStr = jsonMatch ? jsonMatch[1] : raw;
 
     try {
-        const parsed = JSON.parse(jsonStr);
-        // Support both array root and {slides:[...]} wrapper
-        return Array.isArray(parsed) ? parsed : (parsed.slides || parsed.presentation || []);
+        let slides = JSON.parse(jsonStr);
+        slides = Array.isArray(slides) ? slides : (slides.slides || slides.presentation || []);
+        
+        // Post-process to ensure images are only used if appropriate
+        // AND convert keywords to professional placeholder URLs
+        // Use LoremFlickr or Unsplash Source for reliable topic-based images
+        const finalSlides = slides.map(s => {
+            if (s.imageKeyword) {
+                // Topic-based high-res images
+                s.image = `https://loremflickr.com/800/600/${encodeURIComponent(s.imageKeyword.replace(/\s+/g, ','))}`;
+            }
+            return s;
+        });
+
+        return finalSlides;
     } catch {
         throw new Error("AI did not return valid slide JSON. Please try again.");
     }

@@ -2300,3 +2300,139 @@ body {
   .fpm-two-col { grid-template-columns: 1fr; }
 }
 
+/* ── NEW PPT ENHANCEMENTS ── */
+
+/* Mini Slide Branding & Images */
+.sp-branding {
+  position: absolute;
+  bottom: 8px;
+  left: 12px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: rgba(255,255,255,0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  z-index: 10;
+}
+
+.sp-content-flex {
+  display: flex;
+  gap: 12px;
+  height: 100%;
+}
+
+.sp-image-container {
+  flex: 0 0 70px;
+  height: 70px;
+  align-self: center;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.15);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.sp-slide-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Full Preview Fullscreen & Motion Wrapper */
+.fpm-container.is-fs {
+  max-width: 100vw;
+  height: 100vh;
+  border-radius: 0;
+}
+
+.fpm-container.is-fs .fpm-slide-container {
+  height: calc(100vh - 120px);
+}
+
+.fpm-container.is-fs .fpm-slide {
+  height: 100%;
+  min-height: auto;
+}
+
+.fpm-header-btns {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.fpm-fs-btn {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: var(--text-secondary);
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition);
+}
+
+.fpm-fs-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
+
+.fpm-slide-container {
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-card);
+  flex: 1;
+}
+
+.fpm-slide {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.fpm-content-wrap {
+  width: 100%;
+  height: 100%;
+  padding: 0 60px;
+  display: flex;
+  align-items: center;
+}
+
+.fpm-body-flex {
+  display: flex;
+  gap: 40px;
+  align-items: center;
+  width: 100%;
+}
+
+.fpm-image-side {
+  flex: 0 0 380px;
+  height: 380px;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+@media (max-width: 950px) {
+  .fpm-body-flex { flex-direction: column; text-align: center; }
+  .fpm-image-side { flex: 0 0 220px; width: 100%; height: 220px; }
+  .fpm-content-wrap { padding: 0 20px; }
+}
+
+.fpm-side-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.fpm-branding {
+  position: absolute;
+  bottom: 28px;
+  right: 40px;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: rgba(255,255,255,0.25);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  z-index: 20;
+}
+

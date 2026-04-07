@@ -1,5 +1,6 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { generatePptData, uploadPptFile } from "../utils/api";
 import { generatePptx, TEMPLATES, FONT_STYLES } from "../utils/pptGenerator";
 import EditableText from "../components/EditableText";
@@ -88,14 +89,23 @@ function SlidePreview({ slide, template, index, isActive, onClick }) {
     return (
       <div className="sp-content-layout">
         <div className="sp-slide-title" style={{ color: `#${tmpl.highlight}` }}>{slide.title}</div>
-        <ul className="sp-bullets">
-          {(slide.bullets || []).slice(0, 5).map((b, i) => (
-            <li key={i} className="sp-bullet-item">{b}</li>
-          ))}
-        </ul>
+        <div className="sp-content-flex">
+          <ul className="sp-bullets">
+            {(slide.bullets || []).slice(0, 5).map((b, i) => (
+              <li key={i} className="sp-bullet-item">{b}</li>
+            ))}
+          </ul>
+          {slide.image && (
+            <div className="sp-image-container">
+              <img src={slide.image} alt="Slide topic" className="sp-slide-img" />
+            </div>
+          )}
+        </div>
       </div>
     );
   };
+
+  const isFirstSlide = index === 0;
 
   return (
     <div
@@ -111,6 +121,9 @@ function SlidePreview({ slide, template, index, isActive, onClick }) {
       <div className="sp-top-bar" style={{ background: `#${tmpl.accent}` }} />
       {renderContent()}
       <div className="sp-index">#{index + 1}</div>
+      {isFirstSlide && (
+        <div className="sp-branding">VisionText AI</div>
+      )}
     </div>
   );
 }
@@ -119,6 +132,25 @@ function SlidePreview({ slide, template, index, isActive, onClick }) {
 function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onClose, onPrev, onNext, template, fontStyle }) {
   const tmpl = TEMPLATES[template] || TEMPLATES.corporate;
   const slide = slides[currentIndex];
+  const containerRef = useRef(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const handleFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", handleFsChange);
+    return () => document.removeEventListener("fullscreenchange", handleFsChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      containerRef.current.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable full-screen mode: ${err.message}`);
+      });
+    } else {
+      document.exitFullscreen();
+    }
+  };
+
   if (!slide) return null;
 
   const updateField = (field, newText) => {
@@ -166,18 +198,32 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onClose, onPrev
 
   return (
     <div className="fpm-overlay" role="dialog" aria-modal="true" onClick={onClose}>
-      <div className="fpm-container" onClick={(e) => e.stopPropagation()}>
+      <div className={`fpm-container ${isFullscreen ? 'is-fs' : ''}`} ref={containerRef} onClick={(e) => e.stopPropagation()}>
         <div className="fpm-header">
           <span className="fpm-counter">{currentIndex + 1} / {slides.length}</span>
           <span className="fpm-title">{slide.title}</span>
-          <button className="fpm-close" onClick={onClose} aria-label="Close preview">✕</button>
+          <div className="fpm-header-btns">
+             <button className="fpm-fs-btn" onClick={toggleFullscreen} title="Toggle Fullscreen">
+               {isFullscreen ? "🗗" : "⛶"}
+             </button>
+             <button className="fpm-close" onClick={onClose} aria-label="Close preview">✕</button>
+          </div>
         </div>
 
         <div
-          className="fpm-slide"
+          className="fpm-slide-container"
           style={{ background: `#${tmpl.bg}`, fontFamily: FONT_STYLES[fontStyle]?.body || "Calibri, sans-serif" }}
         >
-          <div className="fpm-accent-top" style={{ background: `#${tmpl.accent}` }} />
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentIndex}
+              initial={{ x: 300, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: -300, opacity: 0 }}
+              transition={{ duration: 0.4, ease: "easeInOut" }}
+              className="fpm-slide"
+            >
+              <div className="fpm-accent-top" style={{ background: `#${tmpl.accent}` }} />
 
           {slide.type === "title" ? (
             <div className="fpm-title-slide">
@@ -295,26 +341,38 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onClose, onPrev
               </div>
             </div>
           ) : (
-            <div className="fpm-content">
-              <EditableText 
-                value={slide.title} onChange={(v) => updateField("title", v)}
-                baseSize={60} fontSize={slide.customStyles?.title?.fontSize} onSizeChange={(s) => updateCustomSize("title", s)}
-                component="h2" style={{ color: `#${tmpl.highlight}` }} 
-              />
-              <ul className="fpm-blist" style={{ margin: 0, paddingLeft: "10px" }}>
-                {(slide.bullets || []).map((b, i) => (
+              <div className="fpm-content-wrap">
+                <div className="fpm-content">
                   <EditableText 
-                     key={i} value={b} onChange={(v) => updateArrayField("bullets", i, v)}
-                     baseSize={30} fontSize={slide.customStyles?.bullets?.[i]?.fontSize} onSizeChange={(s) => updateArraySize("bullets", i, s)}
-                     component="li" style={{ color: `#${tmpl.body}` }} isBullet
+                    value={slide.title} onChange={(v) => updateField("title", v)}
+                    baseSize={60} fontSize={slide.customStyles?.title?.fontSize} onSizeChange={(s) => updateCustomSize("title", s)}
+                    component="h2" style={{ color: `#${tmpl.highlight}` }} 
                   />
-                ))}
-              </ul>
-            </div>
-          )}
+                  <div className="fpm-body-flex">
+                    <ul className="fpm-blist" style={{ margin: 0, paddingLeft: "10px", flex: 1 }}>
+                      {(slide.bullets || []).map((b, i) => (
+                        <EditableText 
+                          key={i} value={b} onChange={(v) => updateArrayField("bullets", i, v)}
+                          baseSize={30} fontSize={slide.customStyles?.bullets?.[i]?.fontSize} onSizeChange={(s) => updateArraySize("bullets", i, s)}
+                          component="li" style={{ color: `#${tmpl.body}` }} isBullet
+                        />
+                      ))}
+                    </ul>
+                    {slide.image && (
+                      <div className="fpm-image-side">
+                        <img src={slide.image} alt="Visual" className="fpm-side-img" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
-          <div className="fpm-accent-bottom" style={{ background: `#${tmpl.accent}` }} />
-        </div>
+            <div className="fpm-accent-bottom" style={{ background: `#${tmpl.accent}` }} />
+            {currentIndex === 0 && <div className="fpm-branding">VisionText AI</div>}
+          </motion.div>
+        </AnimatePresence>
+      </div>
 
         <div className="fpm-nav">
           <button className="fpm-nav-btn" onClick={onPrev} disabled={currentIndex === 0}>← Prev</button>
@@ -361,6 +419,33 @@ export default function Aippt() {
 
   const fileInputRef = useRef(null);
   const pptBlobRef = useRef(null);
+
+  // Persistence: Load
+  useEffect(() => {
+    const saved = localStorage.getItem("ai_ppt_state");
+    if (saved) {
+      try {
+        const { prompt: p, slides: s, template: t, fontStyle: f, slideCount: sc } = JSON.parse(saved);
+        if (p) setPrompt(p);
+        if (s?.length) {
+          setSlides(s);
+          setStep("preview");
+        }
+        if (t) setTemplate(t);
+        if (f) setFontStyle(f);
+        if (sc) setSlideCount(sc);
+      } catch (e) {
+        console.error("Failed to load saved state", e);
+      }
+    }
+  }, []);
+
+  // Persistence: Save
+  useEffect(() => {
+    if (step === "generating") return; // Don't save while generating
+    const state = { prompt, slides, template, fontStyle, slideCount };
+    localStorage.setItem("ai_ppt_state", JSON.stringify(state));
+  }, [prompt, slides, template, fontStyle, slideCount, step]);
 
   // ── Image upload ────────────────────────────────────────────────────────────
   const handleImageDrop = useCallback((e) => {
@@ -490,9 +575,9 @@ export default function Aippt() {
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder="e.g. 'The Future of Renewable Energy — cover solar, wind, and battery storage trends for 2025'"
                 rows={4}
-                maxLength={1000}
+                maxLength={6000}
               />
-              <span className="aippt-char-count">{prompt.length}/1000</span>
+              <span className="aippt-char-count">{prompt.length}/6000</span>
             </div>
 
             {/* Image Upload */}
@@ -614,10 +699,11 @@ export default function Aippt() {
           <h2 className="aippt-loading-title">AI is crafting your presentation…</h2>
           <p className="aippt-loading-sub">Generating {slideCount} slides based on your prompt{image ? " and image" : ""}.</p>
           <div className="aippt-loading-steps">
-            <div className="aippt-step aippt-step-done">✅ Analyzing prompt</div>
-            {image && <div className="aippt-step aippt-step-done">✅ Processing image</div>}
-            <div className="aippt-step aippt-step-active">⚡ Building slide structure…</div>
-            <div className="aippt-step">⏳ Applying design</div>
+            <div className="aippt-step aippt-step-done">✅ Analyzing topic requirements</div>
+            {image && <div className="aippt-step aippt-step-done">✅ Processing visual context</div>}
+            <div className="aippt-step aippt-step-active">⚡ Researching accurate content & structure…</div>
+            <div className="aippt-step">⏳ Generating topic-relevant imagery</div>
+            <div className="aippt-step">⏳ Polishing professional design</div>
           </div>
         </div>
       )}
