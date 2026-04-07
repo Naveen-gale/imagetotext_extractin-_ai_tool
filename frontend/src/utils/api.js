@@ -57,3 +57,29 @@ export async function aiExtractInfo(text) {
   if (!res.ok) throw new Error(data.error || "Extract info failed");
   return data.info;
 }
+
+/**
+ * Send prompt + optional image to backend → returns slides JSON array
+ */
+export async function generatePptData({ prompt, image, slideCount = 8 }) {
+  const fd = new FormData();
+  fd.append("prompt", prompt);
+  fd.append("slideCount", String(slideCount));
+  if (image) fd.append("image", image);
+  const res = await fetch(`${BASE}/ai/generate-ppt`, { method: "POST", body: fd });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "PPT generation failed");
+  return data.slides; // array of slide objects
+}
+
+/**
+ * Upload a .pptx Blob to backend → returns an ImageKit public URL
+ */
+export async function uploadPptFile(blob, fileName = "presentation.pptx") {
+  const fd = new FormData();
+  fd.append("file", blob, fileName);
+  const res = await fetch(`${BASE}/upload-ppt`, { method: "POST", body: fd });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Upload failed");
+  return data.url;
+}

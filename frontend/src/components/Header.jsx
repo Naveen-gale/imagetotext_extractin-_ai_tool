@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 export default function Header() {
   return (
     <header className="header">
@@ -7,9 +9,9 @@ export default function Header() {
         <span className="logo-badge">AI</span>
       </div>
       <div className="header-actions">
-        <button className="ppt-soon-btn">
-          📊 Make PPT with AI <span style={{ fontSize: '0.65rem', opacity: 0.8, marginLeft: 4 }}>[Coming Soon]</span>
-        </button>
+        <Link to="/aippt" className="ppt-btn" id="make-ppt-btn">
+          📊 Make PPT with AI
+        </Link>
       </div>
     </header>
   );

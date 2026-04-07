@@ -1,4 +1,4 @@
-import { extractTextFromImage, summarizeText, translateText, fixGrammar, extractKeyInfo } from "../services/groq.service.js";
+import { extractTextFromImage, summarizeText, translateText, fixGrammar, extractKeyInfo, generatePPTContent } from "../services/groq.service.js";
 import { uploadToImageKit } from "../services/imagekit.service.js";
 import { extractDocumentText, formatDocumentTextWithAI } from "../services/document.service.js";
 import fs from "fs/promises";
@@ -153,5 +153,59 @@ export const extractInfo = async (req, res) => {
         return res.status(200).json({ success: true, info });
     } catch (error) {
         return res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+/**
+ * POST /api/v1/ai/generate-ppt
+ * Body (multipart/form-data): prompt, slideCount?, image (optional file)
+ * Returns JSON array of slide objects.
+ */
+export const generatePPT = async (req, res) => {
+    const prompt = req.body?.prompt?.trim();
+    if (!prompt) {
+        return res.status(400).json({ success: false, error: "prompt is required." });
+    }
+    const slideCount = Math.min(Math.max(parseInt(req.body?.slideCount || 8, 10), 4), 20);
+
+    let base64Image = null;
+    let mimeType = "image/jpeg";
+
+    if (req.file) {
+        try {
+            const buffer = await fs.readFile(req.file.path);
+            base64Image = buffer.toString("base64");
+            mimeType = req.file.mimetype || "image/jpeg";
+        } catch (e) {
+            console.warn("Could not read uploaded image:", e.message);
+        } finally {
+            try { await fs.unlink(req.file.path); } catch {}
+        }
+    }
+
+    try {
+        const slides = await generatePPTContent(prompt, base64Image, mimeType, slideCount);
+        return res.status(200).json({ success: true, slides });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+/**
+ * POST /api/v1/upload-ppt
+ * Body (multipart/form-data): file (the .pptx blob)
+ * Returns ImageKit public URL.
+ */
+export const uploadPPT = async (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ success: false, error: "No file uploaded." });
+    }
+    try {
+        const result = await uploadToImageKit(req.file.path, req.file.originalname || "presentation.pptx");
+        return res.status(200).json({ success: true, url: result.url, fileId: result.fileId });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    } finally {
+        try { await fs.unlink(req.file.path); } catch {}
     }
 };

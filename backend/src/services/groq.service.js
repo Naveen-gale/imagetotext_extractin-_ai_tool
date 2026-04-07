@@ -175,3 +175,79 @@ export const extractKeyInfo = async (text) => {
     }
 };
 
+/**
+ * Generate PPT slide content using Groq AI.
+ * Returns a JSON array of slide objects.
+ * @param {string} prompt - User's presentation topic/request
+ * @param {string|null} base64Image - Optional base64 image for visual context
+ * @param {string} mimeType - MIME type of the image
+ * @param {number} slideCount - Requested number of slides
+ */
+export const generatePPTContent = async (prompt, base64Image = null, mimeType = "image/jpeg", slideCount = 8) => {
+    const systemPrompt = `You are an expert presentation designer. Generate content for a PowerPoint presentation.
+Respond ONLY with a valid JSON array. Do NOT include markdown, code blocks, or any extra text.
+Each element in the array is a slide object with this exact shape:
+{
+  "type": "title" | "content" | "image" | "two-column" | "quote" | "timeline" | "stats",
+  "title": "Slide Title",
+  "subtitle": "Optional subtitle (for title slides)",
+  "bullets": ["Point 1", "Point 2", "Point 3"],
+  "quote": "A relevant quote (for quote slides)",
+  "author": "Quote author name",
+  "leftColumn": { "heading": "Left", "bullets": ["..."] },
+  "rightColumn": { "heading": "Right", "bullets": ["..."] },
+  "stats": [{"label": "...", "value": "..."}, ...],
+  "timelineItems": [{"year": "2020", "event": "Something happened"}, ...],
+  "speakerNotes": "Brief presenter notes"
+}
+Generate exactly ${slideCount} slides. First slide must be type "title". Last slide should be a summary/conclusion.
+Make the content professional, engaging, and well-structured.`;
+
+    const userMessages = [];
+
+    if (base64Image) {
+        userMessages.push({
+            role: "user",
+            content: [
+                { type: "text", text: `Create a ${slideCount}-slide presentation about: ${prompt}\n\nUse the provided image as context/reference for the content where relevant.` },
+                { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Image}` } },
+            ],
+        });
+    } else {
+        userMessages.push({
+            role: "user",
+            content: `Create a ${slideCount}-slide presentation about: ${prompt}`,
+        });
+    }
+
+    const model = base64Image
+        ? "meta-llama/llama-4-scout-17b-16e-instruct"
+        : "llama-3.3-70b-versatile";
+
+    const response = await getGroq().chat.completions.create({
+        model,
+        messages: [
+            { role: "system", content: systemPrompt },
+            ...userMessages,
+        ],
+        max_tokens: 4096,
+        temperature: 0.6,
+        response_format: base64Image ? undefined : { type: "json_object" },
+    });
+
+    const raw = response.choices[0]?.message?.content || "[]";
+
+    // Extract JSON from possible markdown wrapper
+    const jsonMatch = raw.match(/(\[\s*\{[\s\S]*\}\s*\])/m)
+        || raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+
+    const jsonStr = jsonMatch ? jsonMatch[1] : raw;
+
+    try {
+        const parsed = JSON.parse(jsonStr);
+        // Support both array root and {slides:[...]} wrapper
+        return Array.isArray(parsed) ? parsed : (parsed.slides || parsed.presentation || []);
+    } catch {
+        throw new Error("AI did not return valid slide JSON. Please try again.");
+    }
+};

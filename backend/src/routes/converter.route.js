@@ -1,14 +1,46 @@
 import { uploadImages } from "../services/uploadImage.service.js";
 import { Router } from "express";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 import {
     convertImages,
     summarize,
     translate,
     grammar,
     extractInfo,
+    generatePPT,
+    uploadPPT,
 } from "../controllers/converter.controller.js";
 
 const router = Router();
+
+// Single-image multer for PPT generation and upload
+const uploadsDir = "uploads/";
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+const pptImageUpload = multer({
+    storage: multer.diskStorage({
+        destination: (req, file, cb) => cb(null, uploadsDir),
+        filename: (req, file, cb) => {
+            const ext = path.extname(file.originalname);
+            cb(null, `ppt-img-${Date.now()}${ext}`);
+        },
+    }),
+    limits: { fileSize: 20 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        const allowed = ["image/jpeg", "image/png", "image/webp", "image/jpg"];
+        allowed.includes(file.mimetype) ? cb(null, true) : cb(new Error("Only images allowed for PPT context"), false);
+    },
+}).single("image");
+
+const pptFileUpload = multer({
+    storage: multer.diskStorage({
+        destination: (req, file, cb) => cb(null, uploadsDir),
+        filename: (req, file, cb) => cb(null, `share-ppt-${Date.now()}.pptx`),
+    }),
+    limits: { fileSize: 50 * 1024 * 1024 },
+}).single("file");
 
 // Image upload & text extraction
 router.post("/convert", uploadImages, convertImages);
@@ -18,5 +50,11 @@ router.post("/ai/summarize", summarize);
 router.post("/ai/translate", translate);
 router.post("/ai/fix-grammar", grammar);
 router.post("/ai/extract-info", extractInfo);
+
+// AI PPT Generation
+router.post("/ai/generate-ppt", pptImageUpload, generatePPT);
+
+// Upload generated PPT to ImageKit for sharing
+router.post("/upload-ppt", pptFileUpload, uploadPPT);
 
 export default router;
