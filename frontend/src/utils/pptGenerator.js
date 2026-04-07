@@ -122,7 +122,7 @@ export async function generatePptx(slides, templateKey = "corporate", fontStyleK
 
   // Return as Blob for browser download / upload
   const blob = await prs.write({ outputType: "blob" });
-  return blob;
+  return new Blob([blob], { type: "application/vnd.openxmlformats-officedocument.presentationml.presentation" });
 }
 
 // ─── Slide Renderers ──────────────────────────────────────────────────────────

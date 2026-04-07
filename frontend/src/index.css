@@ -1866,6 +1866,17 @@ body {
   animation: pulse 1s ease-in-out infinite;
 }
 
+@media (max-width: 640px) {
+  .aippt-loading-steps {
+    padding: 15px 20px;
+    width: 90%;
+    margin: 0 auto;
+  }
+  .aippt-step {
+    font-size: 0.8rem;
+  }
+}
+
 /* ── PREVIEW PAGE ── */
 .aippt-preview-page { display: flex; flex-direction: column; gap: 28px; }
 
@@ -1879,6 +1890,15 @@ body {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
+}
+
+@media (max-width: 768px) {
+  .aippt-preview-header {
+    padding: 16px;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
 }
 .aippt-preview-title {
   font-family: 'Space Grotesk', sans-serif;
@@ -2096,6 +2116,17 @@ body {
 }
 .aippt-export-actions { display: flex; gap: 14px; flex-wrap: wrap; }
 
+@media (max-width: 640px) {
+  .aippt-export-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+  .aippt-action-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
 .aippt-share-box {
   background: rgba(16,185,129,0.06);
   border: 1px solid rgba(16,185,129,0.25);
@@ -2295,9 +2326,13 @@ body {
   .aippt-export-actions { flex-direction: column; }
   .aippt-btn-download, .aippt-btn-share { width: 100%; justify-content: center; }
   .fpm-content { padding: 20px 24px; }
-  .fpm-big-title { font-size: 1.8rem; }
-  .fpm-quote-text { font-size: 1.1rem; }
+  .fpm-big-title { font-size: 1.6rem !important; }
+  .fpm-big-sub { font-size: 1rem !important; }
+  .fpm-quote-text { font-size: 1.1rem !important; }
   .fpm-two-col { grid-template-columns: 1fr; }
+  .fpm-content h2 { font-size: 1.4rem !important; }
+  .fpm-blist li { font-size: 0.9rem !important; }
+  .fpm-slide { min-height: 400px; }
 }
 
 /* ── NEW PPT ENHANCEMENTS ── */

@@ -501,7 +501,8 @@ export default function Aippt() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${prompt.slice(0, 40).replace(/[^a-z0-9]/gi, "_")}_presentation.pptx`;
+      const namePrefix = (prompt || "Presentation").slice(0, 15).replace(/[^a-z0-9]/gi, "_");
+      a.download = `${namePrefix}.pptx`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
