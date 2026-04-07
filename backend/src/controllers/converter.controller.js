@@ -209,3 +209,20 @@ export const uploadPPT = async (req, res) => {
         try { await fs.unlink(req.file.path); } catch {}
     }
 };
+
+/**
+ * POST /api/v1/ai/improve-text
+ * Body: { text: "...", action: "spelling" | "autocomplete" | "improve" }
+ */
+export const improveSlideText = async (req, res) => {
+    const { text, action } = req.body;
+    if (!text || !action) return res.status(400).json({ success: false, error: "Missing text or action." });
+
+    try {
+        const { improveTextEngine } = await import("../services/groq.service.js");
+        const result = await improveTextEngine(text, action);
+        return res.status(200).json({ success: true, text: result });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};

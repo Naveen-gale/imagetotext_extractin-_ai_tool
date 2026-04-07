@@ -132,7 +132,7 @@ function renderTitleSlide(sl, prs, slide, tmpl, fonts) {
 
   sl.addText(slide.title || "Presentation", {
     x: 0.8, y: 2.2, w: 11.5, h: 1.5,
-    fontSize: 44,
+    fontSize: 60,
     bold: true,
     color: tmpl.title,
     fontFace: fonts.heading,
@@ -141,8 +141,8 @@ function renderTitleSlide(sl, prs, slide, tmpl, fonts) {
 
   if (slide.subtitle) {
     sl.addText(slide.subtitle, {
-      x: 0.8, y: 3.9, w: 9, h: 0.8,
-      fontSize: 20,
+      x: 0.8, y: 4.1, w: 9, h: 1.2,
+      fontSize: 30,
       color: tmpl.sub,
       fontFace: fonts.body,
       align: "left",
@@ -168,8 +168,8 @@ function renderTitleSlide(sl, prs, slide, tmpl, fonts) {
 
 function renderContentSlide(sl, _prs, slide, tmpl, fonts) {
   sl.addText(slide.title || "Slide", {
-    x: 0.5, y: 0.3, w: 12, h: 0.9,
-    fontSize: 30,
+    x: 0.5, y: 0.5, w: 12, h: 1.2,
+    fontSize: 60,
     bold: true,
     color: tmpl.highlight,
     fontFace: fonts.heading,
@@ -181,14 +181,14 @@ function renderContentSlide(sl, _prs, slide, tmpl, fonts) {
       text: b,
       options: {
         bullet: { type: "bullet" },
-        fontSize: 18,
+        fontSize: 30,
         color: tmpl.body,
         fontFace: fonts.body,
-        paraSpaceBefore: 8,
+        paraSpaceBefore: 12,
       },
     }));
     sl.addText(bulletText, {
-      x: 0.7, y: 1.5, w: 11.5, h: 5.4,
+      x: 0.7, y: 1.8, w: 11.5, h: 5.2,
       fontFace: fonts.body,
       color: tmpl.body,
     });
@@ -199,8 +199,8 @@ function renderContentSlide(sl, _prs, slide, tmpl, fonts) {
 
 function renderTwoColumnSlide(sl, _prs, slide, tmpl, fonts) {
   sl.addText(slide.title || "Comparison", {
-    x: 0.5, y: 0.3, w: 12, h: 0.9,
-    fontSize: 30,
+    x: 0.5, y: 0.5, w: 12, h: 1.2,
+    fontSize: 60,
     bold: true,
     color: tmpl.highlight,
     fontFace: fonts.heading,
@@ -210,39 +210,39 @@ function renderTwoColumnSlide(sl, _prs, slide, tmpl, fonts) {
   const right = slide.rightColumn || {};
 
   sl.addText(left.heading || "Left", {
-    x: 0.5, y: 1.4, w: 5.8, h: 0.6,
-    fontSize: 20,
+    x: 0.5, y: 1.8, w: 5.8, h: 0.8,
+    fontSize: 30,
     bold: true,
     color: tmpl.accent,
     fontFace: fonts.heading,
   });
   const leftBullets = (left.bullets || []).map((b) => ({
     text: b,
-    options: { bullet: { type: "bullet" }, fontSize: 16, color: tmpl.body, fontFace: fonts.body, paraSpaceBefore: 6 },
+    options: { bullet: { type: "bullet" }, fontSize: 24, color: tmpl.body, fontFace: fonts.body, paraSpaceBefore: 10 },
   }));
   if (leftBullets.length) {
-    sl.addText(leftBullets, { x: 0.5, y: 2.1, w: 5.8, h: 4.8 });
+    sl.addText(leftBullets, { x: 0.5, y: 2.6, w: 5.8, h: 4.4 });
   }
 
   // Divider line
   sl.addShape("line", {
-    x: 6.6, y: 1.4, w: 0, h: 5.2,
+    x: 6.6, y: 1.8, w: 0, h: 4.8,
     line: { color: tmpl.accent, width: 1, transparency: 50 },
   });
 
   sl.addText(right.heading || "Right", {
-    x: 6.9, y: 1.4, w: 5.8, h: 0.6,
-    fontSize: 20,
+    x: 6.9, y: 1.8, w: 5.8, h: 0.8,
+    fontSize: 30,
     bold: true,
     color: tmpl.accent,
     fontFace: fonts.heading,
   });
   const rightBullets = (right.bullets || []).map((b) => ({
     text: b,
-    options: { bullet: { type: "bullet" }, fontSize: 16, color: tmpl.body, fontFace: fonts.body, paraSpaceBefore: 6 },
+    options: { bullet: { type: "bullet" }, fontSize: 24, color: tmpl.body, fontFace: fonts.body, paraSpaceBefore: 10 },
   }));
   if (rightBullets.length) {
-    sl.addText(rightBullets, { x: 6.9, y: 2.1, w: 5.8, h: 4.8 });
+    sl.addText(rightBullets, { x: 6.9, y: 2.6, w: 5.8, h: 4.4 });
   }
 
   if (slide.speakerNotes) sl.addNotes(slide.speakerNotes);
@@ -257,7 +257,7 @@ function renderQuoteSlide(sl, prs, slide, tmpl, fonts) {
 
   sl.addText("\u201c", {
     x: 0.5, y: 1.5, w: 2, h: 2,
-    fontSize: 120,
+    fontSize: 160,
     bold: true,
     color: tmpl.accent,
     fontFace: fonts.heading,
@@ -266,7 +266,7 @@ function renderQuoteSlide(sl, prs, slide, tmpl, fonts) {
 
   sl.addText(slide.quote || slide.title || "", {
     x: 1.5, y: 2.2, w: 10, h: 3,
-    fontSize: 24,
+    fontSize: 40,
     italic: true,
     color: tmpl.title,
     fontFace: fonts.body,
@@ -275,8 +275,8 @@ function renderQuoteSlide(sl, prs, slide, tmpl, fonts) {
 
   if (slide.author) {
     sl.addText(`\u2014 ${slide.author}`, {
-      x: 1.5, y: 5.5, w: 10, h: 0.6,
-      fontSize: 16,
+      x: 1.5, y: 5.8, w: 10, h: 1.0,
+      fontSize: 30,
       color: tmpl.sub,
       fontFace: fonts.body,
       align: "center",
@@ -288,8 +288,8 @@ function renderQuoteSlide(sl, prs, slide, tmpl, fonts) {
 
 function renderTimelineSlide(sl, _prs, slide, tmpl, fonts) {
   sl.addText(slide.title || "Timeline", {
-    x: 0.5, y: 0.3, w: 12, h: 0.9,
-    fontSize: 30,
+    x: 0.5, y: 0.5, w: 12, h: 1.2,
+    fontSize: 60,
     bold: true,
     color: tmpl.highlight,
     fontFace: fonts.heading,
@@ -298,7 +298,7 @@ function renderTimelineSlide(sl, _prs, slide, tmpl, fonts) {
   const items = slide.timelineItems
     || (slide.bullets || []).map((b, i) => ({ year: `Step ${i + 1}`, event: b }));
 
-  const lineY = 3.5;
+  const lineY = 3.6;
 
   // Horizontal spine
   sl.addShape("line", {
@@ -319,8 +319,8 @@ function renderTimelineSlide(sl, _prs, slide, tmpl, fonts) {
 
     // Year label
     sl.addText(item.year || "", {
-      x: x - 0.8, y: lineY + 0.3, w: 1.6, h: 0.5,
-      fontSize: 13,
+      x: x - 1.0, y: lineY + 0.3, w: 2.0, h: 0.8,
+      fontSize: 24,
       bold: true,
       color: tmpl.accent,
       fontFace: fonts.heading,
@@ -328,10 +328,10 @@ function renderTimelineSlide(sl, _prs, slide, tmpl, fonts) {
     });
 
     // Event text — alternate above/below
-    const yOff = i % 2 === 0 ? lineY - 1.8 : lineY + 1.0;
+    const yOff = i % 2 === 0 ? lineY - 1.8 : lineY + 1.2;
     sl.addText(item.event || "", {
-      x: x - 1.0, y: yOff, w: 2, h: 1.4,
-      fontSize: 12,
+      x: x - 1.2, y: yOff, w: 2.4, h: 1.6,
+      fontSize: 18,
       color: tmpl.body,
       fontFace: fonts.body,
       align: "center",
@@ -344,8 +344,8 @@ function renderTimelineSlide(sl, _prs, slide, tmpl, fonts) {
 
 function renderStatsSlide(sl, _prs, slide, tmpl, fonts) {
   sl.addText(slide.title || "Key Statistics", {
-    x: 0.5, y: 0.3, w: 12, h: 0.9,
-    fontSize: 30,
+    x: 0.5, y: 0.5, w: 12, h: 1.2,
+    fontSize: 60,
     bold: true,
     color: tmpl.highlight,
     fontFace: fonts.heading,
@@ -359,25 +359,25 @@ function renderStatsSlide(sl, _prs, slide, tmpl, fonts) {
     const col = i % perRow;
     const row = Math.floor(i / perRow);
     const x = 0.5 + col * colW;
-    const y = 1.6 + row * 2.6;
+    const y = 2.0 + row * 2.8;
 
     sl.addShape("rect", {
-      x, y, w: colW - 0.3, h: 2.2,
+      x, y, w: colW - 0.3, h: 2.4,
       fill: { color: tmpl.accent, transparency: 88 },
       line: { color: tmpl.accent, width: 1, transparency: 40 },
     });
 
     sl.addText(stat.value || "\u2014", {
-      x, y: y + 0.2, w: colW - 0.3, h: 1.1,
-      fontSize: 38,
+      x, y: y + 0.2, w: colW - 0.3, h: 1.2,
+      fontSize: 50,
       bold: true,
       color: tmpl.accent,
       fontFace: fonts.heading,
       align: "center",
     });
     sl.addText(stat.label || "", {
-      x, y: y + 1.3, w: colW - 0.3, h: 0.7,
-      fontSize: 14,
+      x, y: y + 1.5, w: colW - 0.3, h: 0.8,
+      fontSize: 24,
       color: tmpl.body,
       fontFace: fonts.body,
       align: "center",

@@ -1458,7 +1458,76 @@ body {
   
   .ai-panel-header { flex-direction: column; align-items: flex-start; text-align: left; }
   .ai-tools-grid { grid-template-columns: 1fr; gap: 10px; }
+  
+  .fpm-container { 
+    width: 100%; height: 100%; border-radius: 0;
+    max-width: none; margin: 0;
+  }
+  .fpm-slide {
+    min-height: 50vh;
+    padding: 20px 10px;
+  }
+  .fpm-content h2 { font-size: 1.4rem !important; }
+  .fpm-blist li { font-size: 0.9rem !important; }
+  .fpm-big-title { font-size: 1.8rem !important; }
+  .fpm-quote-text { font-size: 1.2rem !important; }
+  .fpm-two-col { grid-template-columns: 1fr; }
 }
+
+/* ── EDITABLE TEXT TOOLBAR ── */
+.editable-text-container { position: relative; }
+.editable-toolbar {
+  position: absolute;
+  top: -46px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  z-index: 100;
+  white-space: nowrap;
+}
+@media (max-width: 640px) {
+  .editable-toolbar {
+    top: -40px;
+    left: 0;
+    transform: none;
+    max-width: 100vw;
+    overflow-x: auto;
+  }
+}
+.tb-btn {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: var(--text-primary);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.tb-btn:hover { background: rgba(255,255,255,0.15); }
+.ai-btn { color: #c084fc; border-color: rgba(168,85,247,0.3); }
+.ai-btn:hover { background: rgba(168,85,247,0.2); }
+.tb-loading {
+  font-size: 0.8rem; color: var(--text-muted); padding: 0 8px; font-weight: 600;
+}
+.tb-divider {
+  width: 1px; height: 16px; background: var(--border); margin: 0 4px;
+}
+.editable-content[contenteditable=true]:empty:before {
+  content: attr(data-placeholder);
+  color: rgba(255,255,255,0.3);
+  pointer-events: none;
+  display: block; /* For Firefox */
+}
+
 
 /* Header Flex Override & PPT Button */
 .header {

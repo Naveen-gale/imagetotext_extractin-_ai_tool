@@ -11,6 +11,7 @@ import {
     extractInfo,
     generatePPT,
     uploadPPT,
+    improveSlideText,
 } from "../controllers/converter.controller.js";
 
 const router = Router();
@@ -56,5 +57,8 @@ router.post("/ai/generate-ppt", pptImageUpload, generatePPT);
 
 // Upload generated PPT to ImageKit for sharing
 router.post("/upload-ppt", pptFileUpload, uploadPPT);
+
+// AI Text Improvement
+router.post("/ai/improve-text", improveSlideText);
 
 export default router;

@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { generatePptData, uploadPptFile } from "../utils/api";
 import { generatePptx, TEMPLATES, FONT_STYLES } from "../utils/pptGenerator";
+import EditableText from "../components/EditableText";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const SLIDE_COUNTS = [4, 6, 8, 10, 12, 15];
@@ -115,10 +116,53 @@ function SlidePreview({ slide, template, index, isActive, onClick }) {
 }
 
 // ─── Full-screen preview modal ────────────────────────────────────────────────
-function FullPreviewModal({ slides, currentIndex, onClose, onPrev, onNext, template, fontStyle }) {
+function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onClose, onPrev, onNext, template, fontStyle }) {
   const tmpl = TEMPLATES[template] || TEMPLATES.corporate;
   const slide = slides[currentIndex];
   if (!slide) return null;
+
+  const updateField = (field, newText) => {
+    onUpdateSlide(currentIndex, { ...slide, [field]: newText });
+  };
+  const updateCustomSize = (field, size) => {
+    onUpdateSlide(currentIndex, { 
+      ...slide, 
+      customStyles: { ...slide.customStyles, [field]: { ...slide.customStyles?.[field], fontSize: size } }
+    });
+  };
+
+  const updateArrayField = (field, arrIndex, newText) => {
+    const arr = [...(slide[field] || [])];
+    arr[arrIndex] = newText;
+    onUpdateSlide(currentIndex, { ...slide, [field]: arr });
+  };
+  const updateArraySize = (field, arrIndex, size) => {
+    const arrStyles = { ...(slide.customStyles?.[field] || {}) };
+    arrStyles[arrIndex] = { fontSize: size };
+    onUpdateSlide(currentIndex, {
+      ...slide,
+      customStyles: { ...slide.customStyles, [field]: arrStyles }
+    });
+  };
+
+  // Helper object field updater (e.g. stats, timeline)
+  const updateObjArrayField = (field, arrIndex, attr, newText) => {
+    const arr = [...(slide[field] || [])];
+    arr[arrIndex] = { ...arr[arrIndex], [attr]: newText };
+    onUpdateSlide(currentIndex, { ...slide, [field]: arr });
+  };
+  // Helper for two-column
+  const updateColField = (colName, attr, newText, arrIndex = null) => {
+    const col = { ...slide[colName] };
+    if (arrIndex !== null) {
+      const arr = [...(col[attr] || [])];
+      arr[arrIndex] = newText;
+      col[attr] = arr;
+    } else {
+      col[attr] = newText;
+    }
+    onUpdateSlide(currentIndex, { ...slide, [colName]: col });
+  };
 
   return (
     <div className="fpm-overlay" role="dialog" aria-modal="true" onClick={onClose}>
@@ -137,61 +181,133 @@ function FullPreviewModal({ slides, currentIndex, onClose, onPrev, onNext, templ
 
           {slide.type === "title" ? (
             <div className="fpm-title-slide">
-              <div className="fpm-big-title" style={{ color: `#${tmpl.title}` }}>{slide.title}</div>
-              {slide.subtitle && <div className="fpm-big-sub" style={{ color: `#${tmpl.sub}` }}>{slide.subtitle}</div>}
+              <EditableText 
+                value={slide.title} onChange={(v) => updateField("title", v)}
+                baseSize={60} fontSize={slide.customStyles?.title?.fontSize} onSizeChange={(s) => updateCustomSize("title", s)}
+                className="fpm-big-title" style={{ color: `#${tmpl.title}`, lineHeight: 1.2, fontWeight: 800, fontFamily: "'Space Grotesk', sans-serif" }} 
+              />
+              <EditableText 
+                value={slide.subtitle || ""} onChange={(v) => updateField("subtitle", v)}
+                baseSize={30} fontSize={slide.customStyles?.subtitle?.fontSize} onSizeChange={(s) => updateCustomSize("subtitle", s)}
+                className="fpm-big-sub" style={{ color: `#${tmpl.sub}` }} 
+              />
             </div>
           ) : slide.type === "quote" ? (
             <div className="fpm-quote-slide">
               <div className="fpm-quote-icon" style={{ color: `#${tmpl.accent}` }}>"</div>
-              <div className="fpm-quote-text" style={{ color: `#${tmpl.title}` }}>{slide.quote || slide.title}</div>
-              {slide.author && <div className="fpm-quote-author" style={{ color: `#${tmpl.sub}` }}>— {slide.author}</div>}
+              <EditableText 
+                value={slide.quote || slide.title || ""} onChange={(v) => updateField("quote", v)}
+                baseSize={40} fontSize={slide.customStyles?.quote?.fontSize} onSizeChange={(s) => updateCustomSize("quote", s)}
+                className="fpm-quote-text" style={{ color: `#${tmpl.title}` }} 
+              />
+              <EditableText 
+                value={slide.author || ""} onChange={(v) => updateField("author", v)}
+                baseSize={30} fontSize={slide.customStyles?.author?.fontSize} onSizeChange={(s) => updateCustomSize("author", s)}
+                className="fpm-quote-author" style={{ color: `#${tmpl.sub}` }} placeholder="Author name"
+              />
             </div>
           ) : slide.type === "stats" ? (
             <div className="fpm-content">
-              <h2 style={{ color: `#${tmpl.highlight}` }}>{slide.title}</h2>
+              <EditableText 
+                value={slide.title} onChange={(v) => updateField("title", v)}
+                baseSize={60} fontSize={slide.customStyles?.title?.fontSize} onSizeChange={(s) => updateCustomSize("title", s)}
+                component="h2" style={{ color: `#${tmpl.highlight}` }} 
+              />
               <div className="fpm-stats-grid">
                 {(slide.stats || []).map((s, i) => (
                   <div key={i} className="fpm-stat" style={{ borderColor: `#${tmpl.accent}66` }}>
-                    <div className="fpm-stat-val" style={{ color: `#${tmpl.accent}` }}>{s.value}</div>
-                    <div className="fpm-stat-lbl" style={{ color: `#${tmpl.body}` }}>{s.label}</div>
+                     <EditableText 
+                        value={s.value} onChange={(v) => updateObjArrayField("stats", i, "value", v)}
+                        baseSize={50} fontSize={slide.customStyles?.stats_val?.[i]?.fontSize} onSizeChange={(sz) => updateArraySize("stats_val", i, sz)}
+                        className="fpm-stat-val" style={{ color: `#${tmpl.accent}` }} 
+                     />
+                     <EditableText 
+                        value={s.label} onChange={(v) => updateObjArrayField("stats", i, "label", v)}
+                        baseSize={24} fontSize={slide.customStyles?.stats_lbl?.[i]?.fontSize} onSizeChange={(sz) => updateArraySize("stats_lbl", i, sz)}
+                        className="fpm-stat-lbl" style={{ color: `#${tmpl.body}` }} 
+                     />
                   </div>
                 ))}
               </div>
             </div>
           ) : slide.type === "two-column" ? (
             <div className="fpm-content">
-              <h2 style={{ color: `#${tmpl.highlight}` }}>{slide.title}</h2>
+              <EditableText 
+                value={slide.title} onChange={(v) => updateField("title", v)}
+                baseSize={60} fontSize={slide.customStyles?.title?.fontSize} onSizeChange={(s) => updateCustomSize("title", s)}
+                component="h2" style={{ color: `#${tmpl.highlight}` }} 
+              />
               <div className="fpm-two-col">
                 <div className="fpm-col">
-                  <div className="fpm-col-h" style={{ color: `#${tmpl.accent}` }}>{slide.leftColumn?.heading}</div>
-                  {(slide.leftColumn?.bullets || []).map((b, i) => <div key={i} className="fpm-bullet" style={{ color: `#${tmpl.body}` }}>• {b}</div>)}
+                  <EditableText 
+                    className="fpm-col-h" style={{ color: `#${tmpl.accent}` }} 
+                    value={slide.leftColumn?.heading} onChange={(v) => updateColField("leftColumn", "heading", v)}
+                    baseSize={30} fontSize={slide.customStyles?.leftHead?.fontSize} onSizeChange={(s) => updateCustomSize("leftHead", s)}
+                  />
+                  {(slide.leftColumn?.bullets || []).map((b, i) => (
+                     <EditableText 
+                       key={i} className="fpm-bullet" style={{ color: `#${tmpl.body}` }} isBullet
+                       value={b} onChange={(v) => updateColField("leftColumn", "bullets", v, i)}
+                       baseSize={24} fontSize={slide.customStyles?.leftBullets?.[i]?.fontSize} onSizeChange={(s) => updateArraySize("leftBullets", i, s)}
+                     />
+                  ))}
                 </div>
                 <div className="fpm-col-divider" style={{ background: `#${tmpl.accent}33` }} />
                 <div className="fpm-col">
-                  <div className="fpm-col-h" style={{ color: `#${tmpl.accent}` }}>{slide.rightColumn?.heading}</div>
-                  {(slide.rightColumn?.bullets || []).map((b, i) => <div key={i} className="fpm-bullet" style={{ color: `#${tmpl.body}` }}>• {b}</div>)}
+                  <EditableText 
+                    className="fpm-col-h" style={{ color: `#${tmpl.accent}` }} 
+                    value={slide.rightColumn?.heading} onChange={(v) => updateColField("rightColumn", "heading", v)}
+                    baseSize={30} fontSize={slide.customStyles?.rightHead?.fontSize} onSizeChange={(s) => updateCustomSize("rightHead", s)}
+                  />
+                  {(slide.rightColumn?.bullets || []).map((b, i) => (
+                    <EditableText 
+                      key={i} className="fpm-bullet" style={{ color: `#${tmpl.body}` }} isBullet
+                      value={b} onChange={(v) => updateColField("rightColumn", "bullets", v, i)}
+                      baseSize={24} fontSize={slide.customStyles?.rightBullets?.[i]?.fontSize} onSizeChange={(s) => updateArraySize("rightBullets", i, s)}
+                    />
+                  ))}
                 </div>
               </div>
             </div>
           ) : slide.type === "timeline" ? (
             <div className="fpm-content">
-              <h2 style={{ color: `#${tmpl.highlight}` }}>{slide.title}</h2>
+              <EditableText 
+                value={slide.title} onChange={(v) => updateField("title", v)}
+                baseSize={60} fontSize={slide.customStyles?.title?.fontSize} onSizeChange={(s) => updateCustomSize("title", s)}
+                component="h2" style={{ color: `#${tmpl.highlight}` }} 
+              />
               <div className="fpm-timeline">
                 {(slide.timelineItems || []).map((t, i) => (
-                  <div key={i} className="fpm-tl-item">
+                  <div key={i} className="fpm-tl-item" style={{display: 'flex', alignItems: 'center'}}>
                     <div className="fpm-tl-dot" style={{ background: `#${tmpl.accent}` }} />
-                    <span className="fpm-tl-yr" style={{ color: `#${tmpl.accent}` }}>{t.year}</span>
-                    <span className="fpm-tl-evt" style={{ color: `#${tmpl.body}` }}> {t.event}</span>
+                    <EditableText 
+                       className="fpm-tl-yr" style={{ margin: 0, width: "100px", color: `#${tmpl.accent}` }}
+                       value={t.year} onChange={(v) => updateObjArrayField("timelineItems", i, "year", v)}
+                       baseSize={24} fontSize={slide.customStyles?.tl_year?.[i]?.fontSize} onSizeChange={(s) => updateArraySize("tl_year", i, s)}
+                    />
+                    <EditableText 
+                       className="fpm-tl-evt" style={{ margin: 0, flex: 1, color: `#${tmpl.body}` }}
+                       value={t.event} onChange={(v) => updateObjArrayField("timelineItems", i, "event", v)}
+                       baseSize={18} fontSize={slide.customStyles?.tl_evt?.[i]?.fontSize} onSizeChange={(s) => updateArraySize("tl_evt", i, s)}
+                    />
                   </div>
                 ))}
               </div>
             </div>
           ) : (
             <div className="fpm-content">
-              <h2 style={{ color: `#${tmpl.highlight}` }}>{slide.title}</h2>
-              <ul className="fpm-blist">
+              <EditableText 
+                value={slide.title} onChange={(v) => updateField("title", v)}
+                baseSize={60} fontSize={slide.customStyles?.title?.fontSize} onSizeChange={(s) => updateCustomSize("title", s)}
+                component="h2" style={{ color: `#${tmpl.highlight}` }} 
+              />
+              <ul className="fpm-blist" style={{ margin: 0, paddingLeft: "10px" }}>
                 {(slide.bullets || []).map((b, i) => (
-                  <li key={i} style={{ color: `#${tmpl.body}` }}>{b}</li>
+                  <EditableText 
+                     key={i} value={b} onChange={(v) => updateArrayField("bullets", i, v)}
+                     baseSize={30} fontSize={slide.customStyles?.bullets?.[i]?.fontSize} onSizeChange={(s) => updateArraySize("bullets", i, s)}
+                     component="li" style={{ color: `#${tmpl.body}` }} isBullet
+                  />
                 ))}
               </ul>
             </div>
@@ -604,6 +720,12 @@ export default function Aippt() {
           currentIndex={activeSlide}
           template={template}
           fontStyle={fontStyle}
+          onUpdateSlide={(idx, updatedSlide) => {
+            const newArray = [...slides];
+            newArray[idx] = updatedSlide;
+            setSlides(newArray);
+            pptBlobRef.current = null; // Re-generate PPT on next download
+          }}
           onClose={() => setShowFullPreview(false)}
           onPrev={() => setActiveSlide((p) => Math.max(0, p - 1))}
           onNext={() => setActiveSlide((p) => Math.min(slides.length - 1, p + 1))}

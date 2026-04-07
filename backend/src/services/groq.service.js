@@ -251,3 +251,31 @@ Make the content professional, engaging, and well-structured.`;
         throw new Error("AI did not return valid slide JSON. Please try again.");
     }
 };
+
+/**
+ * Text improvement engine using Groq
+ */
+export const improveTextEngine = async (text, action) => {
+    let systemPrompt = "You are a direct textual assistant. Return ONLY the edited response exactly. Do NOT use quotes around your answer. Do NOT explain your answer.";
+    if (action === "spelling") {
+        systemPrompt += " Fix spelling and grammatical errors of the provided text.";
+    } else if (action === "autocomplete") {
+        systemPrompt += " Complete the thought or sentence provided by the user naturally but keep it concise.";
+    } else if (action === "improve") {
+        systemPrompt += " Make the text sound more professional and punchy for a PowerPoint slide.";
+    } else {
+        systemPrompt += " Edit the text appropriately.";
+    }
+
+    const response = await getGroq().chat.completions.create({
+        model: "llama-3.3-70b-versatile",
+        messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: text },
+        ],
+        temperature: 0.3,
+        max_tokens: 500,
+    });
+    
+    return response.choices[0]?.message?.content?.trim() || text;
+};

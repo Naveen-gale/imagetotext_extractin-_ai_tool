@@ -83,3 +83,17 @@ export async function uploadPptFile(blob, fileName = "presentation.pptx") {
   if (!res.ok) throw new Error(data.error || "Upload failed");
   return data.url;
 }
+
+/**
+ * Call AI Text Improvement
+ */
+export async function improveTextApi(text, action) {
+  const res = await fetch(`${BASE}/ai/improve-text`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text, action }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Text improvement failed");
+  return data.text;
+}
