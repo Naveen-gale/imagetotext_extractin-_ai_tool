@@ -21,12 +21,21 @@ export default function App() {
           </Routes>
         </main>
 
+<<<<<<< HEAD
         <footer className="footer">
           <p>
             Built with <span>VisionText AI</span> ·{" "}
             <span>developed by Naveen</span>
           </p>
         </footer>
+=======
+      <footer className="footer">
+        <p>
+          Built with <span>VisionText AI</span> ·{" "}
+          <span>developed by Naveen and Vivek</span>
+        </p>
+      </footer>
+>>>>>>> 3826fc00c44d38284a7a31932f13d3c9fbc50076
 
         <Toast toasts={toasts} />
       </div>
