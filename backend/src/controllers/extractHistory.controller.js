@@ -6,6 +6,9 @@ export const saveHistory = async (req, res) => {
         await history.save();
         res.status(201).json({ success: true, data: history });
     } catch (error) {
+        if (error.message.includes("buffering timed out")) {
+            return res.status(503).json({ success: false, message: "Database connection failed. Please check your MongoDB IP whitelist or network connection." });
+        }
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -15,6 +18,9 @@ export const getHistory = async (req, res) => {
         const history = await ExtractHistory.find().sort({ createdAt: -1 });
         res.status(200).json({ success: true, data: history });
     } catch (error) {
+        if (error.message.includes("buffering timed out")) {
+            return res.status(503).json({ success: false, message: "Database connection failed. Please check your MongoDB IP whitelist or network connection." });
+        }
         res.status(500).json({ success: false, message: error.message });
     }
 };

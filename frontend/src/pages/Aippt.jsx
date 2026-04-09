@@ -685,16 +685,23 @@ export default function Aippt() {
 
                 <div className="aippt-field">
                   <label className="aippt-label" htmlFor="slide-count">📑 Number of Slides</label>
-                  <select
+                  <input
                     id="slide-count"
+                    type="number"
+                    min="4"
+                    max="20"
                     className="aippt-select"
                     value={slideCount}
-                    onChange={(e) => setSlideCount(Number(e.target.value))}
-                  >
-                    {SLIDE_COUNTS.map((n) => (
-                      <option key={n} value={n}>{n} slides</option>
-                    ))}
-                  </select>
+                    onChange={(e) => {
+                      let val = parseInt(e.target.value, 10);
+                      if (isNaN(val)) val = 4;
+                      setSlideCount(val);
+                    }}
+                    onBlur={() => {
+                        if (slideCount < 4) setSlideCount(4);
+                        if (slideCount > 20) setSlideCount(20);
+                    }}
+                  />
                 </div>
               </div>
             </div>
