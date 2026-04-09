@@ -1,9 +1,10 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { generatePptData, uploadPptFile } from "../utils/api";
+import { generatePptData, uploadPptFile, savePptHistory } from "../utils/api";
 import { generatePptx, TEMPLATES, FONT_STYLES } from "../utils/pptGenerator";
 import EditableText from "../components/EditableText";
+import HistoryModal from "../components/modals/HistoryModal";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const SLIDE_COUNTS = [4, 6, 8, 10, 12, 15];
@@ -397,6 +398,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onClose, onPrev
 export default function Aippt() {
   // Step states: "input" → "generating" → "preview"
   const [step, setStep] = useState("input");
+  const [showHistory, setShowHistory] = useState(false);
 
   // Form state
   const [prompt, setPrompt] = useState("");
@@ -410,6 +412,7 @@ export default function Aippt() {
   const [slides, setSlides] = useState([]);
   const [activeSlide, setActiveSlide] = useState(0);
   const [showFullPreview, setShowFullPreview] = useState(false);
+  const [lastSavedId, setLastSavedId] = useState(null);
 
   // Action states
   const [downloading, setDownloading] = useState(false);
@@ -482,6 +485,15 @@ export default function Aippt() {
       setSlides(slideData);
       setActiveSlide(0);
       setStep("preview");
+      
+      savePptHistory({
+        prompt,
+        slideCount,
+        template,
+        fontStyle,
+        slides: slideData
+      }).then(res => setLastSavedId(res._id)).catch(err => console.error("History save failed:", err));
+      
     } catch (err) {
       setError(err.message);
       setStep("input");
@@ -517,13 +529,11 @@ export default function Aippt() {
     setSharing(true);
     setError("");
     try {
-      let blob = pptBlobRef.current;
-      if (!blob) {
-        blob = await generatePptx(slides, template, fontStyle);
-        pptBlobRef.current = blob;
+      if (lastSavedId) {
+        setShareUrl(`${window.location.origin}/share-ppt/${lastSavedId}`);
+      } else {
+        setError("History not saved yet, try regenerating or reloading.");
       }
-      const url = await uploadPptFile(blob, `${prompt.slice(0, 30).replace(/\s+/g, "_")}.pptx`);
-      setShareUrl(url);
     } catch (err) {
       setError("Share failed: " + err.message);
     } finally {
@@ -546,9 +556,14 @@ export default function Aippt() {
   return (
     <div className="aippt-page">
       {/* Back navigation */}
-      <div className="aippt-topbar">
-        <Link to="/" className="aippt-back-btn">← Back to VisionText</Link>
-        <div className="aippt-badge">📊 AI Presentation Studio</div>
+      <div className="aippt-topbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <Link to="/" className="aippt-back-btn">← Back to VisionText</Link>
+          <div className="aippt-badge">📊 AI Presentation Studio</div>
+        </div>
+        <button onClick={() => setShowHistory(true)} style={{ background: '#3b82f6', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
+            🕰️ History
+        </button>
       </div>
 
       {/* ── STEP 1: Input Form ── */}
@@ -621,21 +636,30 @@ export default function Aippt() {
               {/* Template Selection */}
               <div className="aippt-field aippt-field-inline">
                 <label className="aippt-label">🎨 Template</label>
-                <div className="aippt-template-grid">
+                <div className="aippt-template-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '15px' }}>
                   {Object.entries(TEMPLATES).map(([key, tmpl]) => (
                     <button
                       key={key}
-                      className={`aippt-tmpl-btn ${template === key ? "aippt-tmpl-active" : ""}`}
+                      className={`aippt-tmpl-card ${template === key ? "active" : ""}`}
                       style={{
-                        background: template === key ? `#${tmpl.accent}22` : undefined,
-                        borderColor: template === key ? `#${tmpl.accent}` : undefined,
-                        color: template === key ? `#${tmpl.accent}` : undefined,
+                        display: 'flex', flexDirection: 'column', 
+                        border: template === key ? `2px solid #${tmpl.accent}` : `2px solid transparent`,
+                        background: `#${tmpl.bg}`, borderRadius: '12px', overflow: 'hidden', cursor: 'pointer',
+                        boxShadow: template === key ? `0 0 10px #${tmpl.accent}55` : '0 2px 5px rgba(0,0,0,0.2)', padding: 0, transition: 'all 0.2s ease'
                       }}
                       onClick={() => { setTemplate(key); pptBlobRef.current = null; }}
                       aria-pressed={template === key}
                     >
-                      <span>{tmpl.emoji}</span>
-                      <span>{tmpl.name}</span>
+                      <div style={{ height: '70px', position: 'relative', width: '100%', borderBottom: `1px solid #${tmpl.accent}22` }}>
+                         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '15px', background: `#${tmpl.accent}` }}></div>
+                         <span style={{ position: 'absolute', top: '25px', left: '10px', fontSize: '10px', color: `#${tmpl.title}`, fontWeight: 'bold' }}>VisionText</span>
+                         <div style={{ position: 'absolute', top: '40px', left: '10px', right: '30px', height: '4px', background: `#${tmpl.body}`, borderRadius: '2px' }}></div>
+                         <div style={{ position: 'absolute', top: '50px', left: '10px', right: '50px', height: '4px', background: `#${tmpl.sub}`, borderRadius: '2px' }}></div>
+                      </div>
+                      <div style={{ padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: 'rgba(255,255,255,0.05)', width: '100%' }}>
+                        <span>{tmpl.emoji}</span>
+                        <span style={{ fontSize: '13px', fontWeight: 'bold', color: `#${tmpl.title}` }}>{tmpl.name}</span>
+                      </div>
                     </button>
                   ))}
                 </div>
@@ -816,6 +840,22 @@ export default function Aippt() {
           onClose={() => setShowFullPreview(false)}
           onPrev={() => setActiveSlide((p) => Math.max(0, p - 1))}
           onNext={() => setActiveSlide((p) => Math.min(slides.length - 1, p + 1))}
+        />
+      )}
+      
+      {showHistory && (
+        <HistoryModal 
+           onClose={() => setShowHistory(false)}
+           onLoadHistoryItem={(item) => {
+             setPrompt(item.prompt);
+             setTemplate(item.template);
+             setFontStyle(item.fontStyle);
+             setSlideCount(item.slideCount);
+             setSlides(item.slides);
+             setActiveSlide(0);
+             setStep("preview");
+             setShowHistory(false);
+           }}
         />
       )}
     </div>

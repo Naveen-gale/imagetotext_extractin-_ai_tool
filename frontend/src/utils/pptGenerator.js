@@ -76,6 +76,7 @@ export async function generatePptx(slides, templateKey = "corporate", fontStyleK
 
   for (const slide of slides) {
     const sl = prs.addSlide();
+    sl.background = { color: tmpl.bg };
 
     // Branding - ONLY ON FIRST SLIDE
     if (slides.indexOf(slide) === 0) {

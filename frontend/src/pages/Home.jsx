@@ -4,7 +4,8 @@ import DropZone from "../components/DropZone";
 import ResultCard from "../components/ResultCard";
 import CombinedDownload from "../components/CombinedDownload";
 import AiPanel from "../components/AiPanel";
-import { extractTextFromImages } from "../utils/api";
+import { extractTextFromImages, saveExtractHistory } from "../utils/api";
+import ExtractHistoryModal from "../components/modals/ExtractHistoryModal";
 
 export default function Home({ addToast }) {
   const [files, setFiles] = useState([]);
@@ -12,6 +13,7 @@ export default function Home({ addToast }) {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   // ── File handling ──────────────────────────────────────────────────────────
   const handleFiles = useCallback(
@@ -68,6 +70,13 @@ export default function Home({ addToast }) {
         `✅ ${okCount}/${data.results.length} file${data.results.length > 1 ? "s" : ""} extracted successfully!`,
         "success"
       );
+      
+      const totalWordsCount = (data.results || []).reduce((s, r) => s + (r.wordCount || 0), 0);
+      saveExtractHistory({
+        results: data.results || [],
+        totalWords: totalWordsCount
+      }).catch(err => console.error("Extract history save failed:", err));
+      
     } catch (err) {
       addToast(`Error: ${err.message}`, "error");
     } finally {
@@ -79,6 +88,11 @@ export default function Home({ addToast }) {
 
   return (
     <>
+      <div style={{ display: 'flex', justifyContent: 'center', width: '100%', padding: '10px 20px', maxWidth: '800px', margin: '0 auto', boxSizing: 'border-box' }}>
+        <button onClick={() => setShowHistory(true)} style={{ marginLeft: 'auto', background: '#3b82f6', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
+            🕰️ Extraction History
+        </button>
+      </div>
       <Hero />
 
       <DropZone
@@ -177,6 +191,18 @@ export default function Home({ addToast }) {
           <div className="empty-state-icon">🔮</div>
           <p>Upload files above to start extracting text with VisionText AI</p>
         </div>
+      )}
+
+      {showHistory && (
+        <ExtractHistoryModal 
+           onClose={() => setShowHistory(false)}
+           onLoadHistoryItem={(item) => {
+             setResults(item.results);
+             setFiles([]);
+             setPreviews([]);
+             setShowHistory(false);
+           }}
+        />
       )}
     </>
   );

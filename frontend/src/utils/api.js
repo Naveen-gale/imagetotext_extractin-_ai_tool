@@ -114,3 +114,61 @@ export async function improveTextApi(text, action) {
   const data = await handleResponse(res, "Text Improve");
   return data.text;
 }
+
+export async function savePptHistory(historyData) {
+  const res = await fetch(`${BASE}/history`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(historyData),
+  });
+  const data = await handleResponse(res, "Save History");
+  return data.data;
+}
+
+export async function getPptHistory() {
+  const res = await fetch(`${BASE}/history`);
+  const data = await handleResponse(res, "Get History");
+  return data.data;
+}
+
+export async function deletePptHistoryItem(id) {
+  const res = await fetch(`${BASE}/history/${id}`, { method: "DELETE" });
+  await handleResponse(res, "Delete History Item");
+}
+
+export async function clearAllPptHistory() {
+  const res = await fetch(`${BASE}/history/clear`, { method: "DELETE" });
+  await handleResponse(res, "Clear History");
+}
+
+export async function getPptHistoryById(id) {
+  const res = await fetch(`${BASE}/history/${id}`);
+  const data = await handleResponse(res, "Get PPT by ID");
+  return data.data;
+}
+
+export async function saveExtractHistory(historyData) {
+  const res = await fetch(`${BASE}/extract-history`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(historyData),
+  });
+  const data = await handleResponse(res, "Save Extract History");
+  return data.data;
+}
+
+export async function getExtractHistory() {
+  const res = await fetch(`${BASE}/extract-history`);
+  const data = await handleResponse(res, "Get Extract History");
+  return data.data;
+}
+
+export async function deleteExtractHistoryItem(id) {
+  const res = await fetch(`${BASE}/extract-history/${id}`, { method: "DELETE" });
+  await handleResponse(res, "Delete Extract History Item");
+}
+
+export async function clearAllExtractHistory() {
+  const res = await fetch(`${BASE}/extract-history/clear`, { method: "DELETE" });
+  await handleResponse(res, "Clear Extract History");
+}

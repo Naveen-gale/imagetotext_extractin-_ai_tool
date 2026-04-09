@@ -1,6 +1,8 @@
 import express from "express";
 import cors from "cors";
 import converterRouter from "./routes/converter.route.js";
+import historyRouter from "./routes/history.routes.js";
+import extractHistoryRouter from "./routes/extractHistory.routes.js";
 
 const app = express();
 
@@ -41,6 +43,8 @@ app.get("/health", (req, res) => {
 });
 
 app.use("/api/v1", converterRouter);
+app.use("/api/v1/history", historyRouter);
+app.use("/api/v1/extract-history", extractHistoryRouter);
 
 // Global Error Handler
 app.use((err, req, res, next) => {

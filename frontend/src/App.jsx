@@ -4,6 +4,7 @@ import Header from "./components/Header";
 import Toast from "./components/Toast";
 import Home from "./pages/Home";
 import Aippt from "./pages/Aippt";
+import SharePpt from "./pages/SharePpt";
 import { useToast } from "./hooks/useToast";
 
 export default function App() {
@@ -18,6 +19,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Home addToast={addToast} />} />
             <Route path="/aippt" element={<Aippt />} />
+            <Route path="/share-ppt/:id" element={<SharePpt />} />
           </Routes>
         </main>
 
