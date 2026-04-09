@@ -67,23 +67,30 @@ export default function EditableText({
 
   return (
     <div
-      className={`editable-text-container ${isFocused ? "focused" : ""} ${isHovered ? "hovered" : ""}`}
+      className={`relative w-full group ${isFocused ? "z-50" : ""} ${isHovered ? "" : ""}`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      style={{ position: "relative", width: "100%" }}
     >
       {(showToolbar || (isHovered && !isFocused)) && (
-        <div className="editable-toolbar" onMouseDown={(e) => e.preventDefault()}>
-          <button className="tb-btn" onClick={() => onSizeChange((displaySize) + 5)} title="Increase Size">A+</button>
-          <button className="tb-btn" onClick={() => onSizeChange(Math.max(10, (displaySize) - 5))} title="Decrease Size">A-</button>
-          <div className="tb-divider" />
+        <div 
+          className="absolute -top-10 left-0 bg-slate-800 border border-slate-700 rounded-lg shadow-xl flex items-center p-1 gap-1 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200" 
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          <button className="px-2 py-1 hover:bg-slate-700 text-slate-300 font-bold rounded text-xs transition-colors" onClick={() => onSizeChange((displaySize) + 5)} title="Increase Size">A+</button>
+          <button className="px-2 py-1 hover:bg-slate-700 text-slate-300 font-bold rounded text-xs transition-colors" onClick={() => onSizeChange(Math.max(10, (displaySize) - 5))} title="Decrease Size">A-</button>
+          
+          <div className="w-[1px] h-4 bg-slate-700 mx-1" />
+          
           {loadingAction ? (
-            <span className="tb-loading">⏳ AI...</span>
+            <span className="px-2 py-1 text-indigo-400 font-bold text-xs flex items-center gap-1">
+              <div className="w-3 h-3 border-2 border-indigo-400/30 border-t-indigo-400 rounded-full animate-spin" />
+              AI...
+            </span>
           ) : (
             <>
-              <button className="tb-btn ai-btn" onClick={() => handleAIAction("spelling")} title="Fix Spelling">✏️ Fix</button>
-              <button className="tb-btn ai-btn" onClick={() => handleAIAction("autocomplete")} title="Autocomplete">✨ Finish</button>
-              <button className="tb-btn ai-btn" onClick={() => handleAIAction("improve")} title="Improve">🚀 Tone</button>
+              <button className="px-2 py-1 hover:bg-indigo-500/20 text-indigo-400 hover:text-indigo-300 font-bold rounded text-xs transition-colors flex items-center gap-1" onClick={() => handleAIAction("spelling")} title="Fix Spelling">✏️ Fix</button>
+              <button className="px-2 py-1 hover:bg-indigo-500/20 text-indigo-400 hover:text-indigo-300 font-bold rounded text-xs transition-colors flex items-center gap-1" onClick={() => handleAIAction("autocomplete")} title="Autocomplete">✨ Finish</button>
+              <button className="px-2 py-1 hover:bg-indigo-500/20 text-indigo-400 hover:text-indigo-300 font-bold rounded text-xs transition-colors flex items-center gap-1" onClick={() => handleAIAction("improve")} title="Improve Tone">🚀 Tone</button>
             </>
           )}
         </div>
@@ -93,23 +100,20 @@ export default function EditableText({
         ref={contentRef}
         contentEditable
         suppressContentEditableWarning
-        className={`editable-content ${className}`}
+        className={`${className} transition-all duration-200 ease-in-out cursor-text outline-none rounded-md px-2 ${
+          isFocused 
+            ? "bg-slate-800/50 border border-dashed border-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.1)]" 
+            : "border border-dashed border-transparent hover:border-slate-800"
+        }`}
         onFocus={handleFocus}
         onBlur={handleBlur}
         onClick={(e) => e.stopPropagation()}
         style={{
           ...style,
           fontSize: `${displaySize}px`,
-          outline: "none",
           minWidth: "10px",
           minHeight: "1em",
           display: isBullet ? "list-item" : "block",
-          border: isFocused ? "1px dashed rgba(168,85,247,0.5)" : "1px dashed transparent",
-          background: isFocused ? "rgba(255,255,255,0.05)" : "transparent",
-          padding: isFocused ? "2px 8px" : "2px 8px",
-          borderRadius: "4px",
-          transition: "var(--transition)",
-          cursor: "text"
         }}
         data-placeholder={placeholder}
       >

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { History, Trash2, X, FolderOpen, AlertCircle } from "lucide-react";
 import { getPptHistory, deletePptHistoryItem, clearAllPptHistory } from "../../utils/api";
 
 export default function HistoryModal({ onClose, onLoadHistoryItem }) {
@@ -42,56 +43,98 @@ export default function HistoryModal({ onClose, onLoadHistoryItem }) {
   };
 
   return (
-    <div className="fpm-overlay" role="dialog" aria-modal="true" onClick={onClose} style={{ zIndex: 1000, background: 'rgba(0,0,0,0.8)' }}>
-      <div className="fpm-container" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '800px', height: '80vh', display: 'flex', flexDirection: 'column', background: '#1e1e2e', borderRadius: '16px', border: '1px solid #333' }}>
-        
-        <div className="fpm-header" style={{ padding: '20px', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ margin: 0, color: 'white', fontSize: '24px' }}>🕰️ Presentation History</h2>
-          <div>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-300" onClick={onClose} role="dialog" aria-modal="true">
+      <div 
+        className="w-full max-w-3xl max-h-[85vh] bg-slate-900 border border-slate-800 rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-500" 
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between p-8 border-b border-slate-800 bg-slate-900/50">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-purple-500/10 rounded-2xl flex items-center justify-center text-purple-400">
+               <History className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-white">Presentation History</h2>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">
+                 Your past generated presentations
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
             {history.length > 0 && (
-               <button onClick={handleClearAll} style={{ background: '#ef4444', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', marginRight: '16px', fontWeight: 'bold' }}>
-                 🗑️ Clear All
+               <button 
+                 onClick={handleClearAll} 
+                 className="flex items-center gap-2 px-5 py-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-xl font-bold text-sm transition-all border border-red-500/20"
+               >
+                 <Trash2 className="w-4 h-4" />
+                 <span className="hidden sm:inline">Clear All</span>
                </button>
             )}
-            <button onClick={onClose} style={{ background: 'transparent', color: 'white', border: 'none', fontSize: '24px', cursor: 'pointer' }}>✕</button>
+            <button 
+              className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:bg-red-500/10 hover:text-red-400 transition-all font-bold" 
+              onClick={onClose}
+              title="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
         </div>
 
-        <div style={{ padding: '20px', flex: 1, overflowY: 'auto' }}>
-          {loading && <div style={{ color: 'white', textAlign: 'center' }}>Loading history...</div>}
-          {error && <div style={{ color: '#ef4444', textAlign: 'center', marginBottom: '16px' }}>{error}</div>}
+        <div className="p-8 flex-1 overflow-y-auto w-full">
+          {loading && (
+             <div className="flex flex-col items-center justify-center h-48 space-y-4">
+                <div className="w-8 h-8 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin" />
+                <span className="text-sm font-bold text-slate-400 uppercase tracking-widest">Loading history...</span>
+             </div>
+          )}
+          {error && (
+             <div className="p-6 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center gap-3 mb-6">
+                <AlertCircle className="w-6 h-6 text-red-500" />
+                <span className="text-red-500 font-bold">{error}</span>
+             </div>
+          )}
           
           {!loading && history.length === 0 && (
-             <div style={{ color: '#aaa', textAlign: 'center', marginTop: '40px' }}>No history found. Generate some presentations!</div>
+             <div className="flex flex-col items-center justify-center py-20 text-center space-y-4 border-2 border-dashed border-slate-800 rounded-3xl">
+                <History className="w-12 h-12 text-slate-700" />
+                <h3 className="text-xl font-bold text-slate-400">No history found</h3>
+                <p className="text-slate-500">Generate some presentations to see them here.</p>
+             </div>
           )}
 
-          <div style={{ display: 'grid', gap: '16px' }}>
+          <div className="grid gap-4">
             {history.map((item) => (
-               <div key={item._id} style={{ background: '#2a2a3c', padding: '16px', borderRadius: '12px', border: '1px solid #444', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                 <div style={{ flex: 1, paddingRight: '20px' }}>
-                   <h3 style={{ margin: '0 0 8px 0', color: '#fff', fontSize: '18px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '400px' }}>
-                     {item.prompt}
+               <div key={item._id} className="group bg-slate-900 border border-slate-800 hover:border-purple-500/30 rounded-2xl p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 transition-all hover:shadow-lg hover:shadow-purple-500/5">
+                 <div className="flex-1 min-w-0 pr-4">
+                   <h3 className="text-lg font-black text-white mb-2 truncate" title={item.prompt}>
+                     {item.prompt?.length > 50 ? item.prompt.substring(0, 50) + "..." : item.prompt}
                    </h3>
-                   <div style={{ color: '#aaa', fontSize: '14px', display: 'flex', gap: '16px' }}>
-                     <span>📑 {item.slideCount} slides</span>
-                     <span>🎨 {item.template}</span>
-                     <span>📅 {new Date(item.createdAt).toLocaleDateString()}</span>
+                   <div className="flex flex-wrap items-center gap-3 mt-2">
+                     <span className="px-3 py-1 bg-slate-800 text-slate-300 text-[10px] font-black uppercase tracking-widest rounded-md">
+                        📑 {item.slideCount} slides
+                     </span>
+                     <span className="px-3 py-1 bg-slate-800 text-slate-300 text-[10px] font-black uppercase tracking-widest rounded-md border border-slate-700">
+                        🎨 {item.template}
+                     </span>
+                     <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1 sm:mt-0 ml-auto sm:ml-0">
+                        📅 {new Date(item.createdAt).toLocaleDateString()}
+                     </span>
                    </div>
                  </div>
                  
-                 <div style={{ display: 'flex', gap: '10px' }}>
+                 <div className="flex items-center gap-2 w-full sm:w-auto">
                    <button 
                      onClick={() => onLoadHistoryItem(item)}
-                     style={{ background: '#3b82f6', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                     className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-xl font-bold text-sm transition-all focus:ring-4 ring-indigo-500/20 active:scale-95"
                    >
-                     📂 Open
+                     <FolderOpen className="w-4 h-4" /> Open
                    </button>
                    <button 
                      onClick={() => handleDelete(item._id)}
-                     style={{ background: 'transparent', color: '#ef4444', border: '1px solid #ef4444', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer' }}
+                     className="flex items-center justify-center bg-slate-800 hover:bg-red-500/10 text-slate-400 hover:text-red-500 border border-slate-700 hover:border-red-500/30 p-3 rounded-xl transition-all active:scale-95"
                      title="Delete"
                    >
-                     ✕
+                     <Trash2 className="w-4 h-4" />
                    </button>
                  </div>
                </div>

@@ -3,8 +3,7 @@ import mongoose from "mongoose";
 const connectDB = async () => {
     try {
         if (!process.env.MONGODB_URI) {
-            console.error("MongoDB URI is missing in .env");
-            return;
+            throw new Error("MONGODB_URI is missing in your environment variables. Please add it to your Render dashboard!");
         }
         
         mongoose.connection.on("disconnected", () => console.warn("MongoDB disconnected."));
