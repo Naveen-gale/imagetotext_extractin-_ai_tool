@@ -226,3 +226,41 @@ export const improveSlideText = async (req, res) => {
         return res.status(500).json({ success: false, error: error.message });
     }
 };
+
+/**
+ * POST /api/v1/ai/edit-ppt
+ * Body: { prompt: "make it professional", currentSlides: [...] }
+ */
+export const editPPT = async (req, res) => {
+    const { prompt, currentSlides } = req.body;
+    if (!prompt || !currentSlides || !Array.isArray(currentSlides)) {
+        return res.status(400).json({ success: false, error: "prompt and currentSlides array are required." });
+    }
+
+    try {
+        const { editPPTContent } = await import("../services/groq.service.js");
+        const slides = await editPPTContent(prompt, currentSlides);
+        return res.status(200).json({ success: true, slides });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+/**
+ * POST /api/v1/ai/edit-slide
+ * Body: { prompt: "add details", slide: { ... } }
+ */
+export const editSingleSlide = async (req, res) => {
+    const { prompt, slide } = req.body;
+    if (!prompt || !slide) {
+        return res.status(400).json({ success: false, error: "prompt and slide object are required." });
+    }
+
+    try {
+        const { editSingleSlideContent } = await import("../services/groq.service.js");
+        const updatedSlide = await editSingleSlideContent(prompt, slide);
+        return res.status(200).json({ success: true, slide: updatedSlide });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};

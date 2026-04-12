@@ -2,7 +2,8 @@ import ExtractHistory from "../models/ExtractHistory.js";
 
 export const saveHistory = async (req, res) => {
     try {
-        const history = new ExtractHistory(req.body);
+        const sessionId = req.headers["x-session-id"] || "anonymous";
+        const history = new ExtractHistory({ ...req.body, sessionId });
         await history.save();
         res.status(201).json({ success: true, data: history });
     } catch (error) {
@@ -15,7 +16,8 @@ export const saveHistory = async (req, res) => {
 
 export const getHistory = async (req, res) => {
     try {
-        const history = await ExtractHistory.find().sort({ createdAt: -1 });
+        const sessionId = req.headers["x-session-id"] || "anonymous";
+        const history = await ExtractHistory.find({ sessionId }).sort({ createdAt: -1 });
         res.status(200).json({ success: true, data: history });
     } catch (error) {
         if (error.message.includes("buffering timed out")) {
@@ -36,8 +38,9 @@ export const deleteHistoryItem = async (req, res) => {
 
 export const clearHistory = async (req, res) => {
     try {
-        await ExtractHistory.deleteMany({});
-        res.status(200).json({ success: true, message: "All history cleared" });
+        const sessionId = req.headers["x-session-id"] || "anonymous";
+        await ExtractHistory.deleteMany({ sessionId });
+        res.status(200).json({ success: true, message: "All user history cleared" });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }

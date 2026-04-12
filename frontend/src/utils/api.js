@@ -6,6 +6,23 @@ if (BASE.startsWith("http") && !BASE.endsWith("/api/v1")) {
   BASE = BASE.replace(/\/+$/, "") + "/api/v1";
 }
 
+function getSessionId() {
+  let sid = localStorage.getItem("visiontext_session_id");
+  if (!sid) {
+    sid = "sess_" + Math.random().toString(36).substring(2, 15) + Date.now();
+    localStorage.setItem("visiontext_session_id", sid);
+  }
+  return sid;
+}
+
+const getHeaders = (isJson = true) => {
+  const headers = {
+    "x-session-id": getSessionId()
+  };
+  if (isJson) headers["Content-Type"] = "application/json";
+  return headers;
+};
+
 // Utility to safely parse JSON or return better error metadata
 async function handleResponse(res, context = "API call") {
   const contentType = res.headers.get("content-type");
@@ -92,6 +109,19 @@ export async function generatePptData({ prompt, image, slideCount = 8 }) {
 }
 
 /**
+ * Edit existing PPT data using a natural language prompt
+ */
+export async function editPptData(prompt, currentSlides) {
+  const res = await fetch(`${BASE}/ai/edit-ppt`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt, currentSlides }),
+  });
+  const data = await handleResponse(res, "PPT Edit");
+  return data.slides;
+}
+
+/**
  * Upload a .pptx Blob to backend → returns an ImageKit public URL
  */
 export async function uploadPptFile(blob, fileName = "presentation.pptx") {
@@ -118,7 +148,7 @@ export async function improveTextApi(text, action) {
 export async function savePptHistory(historyData) {
   const res = await fetch(`${BASE}/history`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getHeaders(),
     body: JSON.stringify(historyData),
   });
   const data = await handleResponse(res, "Save History");
@@ -126,23 +156,23 @@ export async function savePptHistory(historyData) {
 }
 
 export async function getPptHistory() {
-  const res = await fetch(`${BASE}/history`);
+  const res = await fetch(`${BASE}/history`, { headers: getHeaders(false) });
   const data = await handleResponse(res, "Get History");
   return data.data;
 }
 
 export async function deletePptHistoryItem(id) {
-  const res = await fetch(`${BASE}/history/${id}`, { method: "DELETE" });
+  const res = await fetch(`${BASE}/history/${id}`, { method: "DELETE", headers: getHeaders(false) });
   await handleResponse(res, "Delete History Item");
 }
 
 export async function clearAllPptHistory() {
-  const res = await fetch(`${BASE}/history/clear`, { method: "DELETE" });
+  const res = await fetch(`${BASE}/history/clear`, { method: "DELETE", headers: getHeaders(false) });
   await handleResponse(res, "Clear History");
 }
 
 export async function getPptHistoryById(id) {
-  const res = await fetch(`${BASE}/history/${id}`);
+  const res = await fetch(`${BASE}/history/${id}`, { headers: getHeaders(false) });
   const data = await handleResponse(res, "Get PPT by ID");
   return data.data;
 }
@@ -150,7 +180,7 @@ export async function getPptHistoryById(id) {
 export async function saveExtractHistory(historyData) {
   const res = await fetch(`${BASE}/extract-history`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getHeaders(),
     body: JSON.stringify(historyData),
   });
   const data = await handleResponse(res, "Save Extract History");
@@ -158,17 +188,28 @@ export async function saveExtractHistory(historyData) {
 }
 
 export async function getExtractHistory() {
-  const res = await fetch(`${BASE}/extract-history`);
+  const res = await fetch(`${BASE}/extract-history`, { headers: getHeaders(false) });
   const data = await handleResponse(res, "Get Extract History");
   return data.data;
 }
 
 export async function deleteExtractHistoryItem(id) {
-  const res = await fetch(`${BASE}/extract-history/${id}`, { method: "DELETE" });
+  const res = await fetch(`${BASE}/extract-history/${id}`, { method: "DELETE", headers: getHeaders(false) });
   await handleResponse(res, "Delete Extract History Item");
 }
 
 export async function clearAllExtractHistory() {
-  const res = await fetch(`${BASE}/extract-history/clear`, { method: "DELETE" });
+  const res = await fetch(`${BASE}/extract-history/clear`, { method: "DELETE", headers: getHeaders(false) });
   await handleResponse(res, "Clear Extract History");
 }
+
+export async function editSingleSlideData(prompt, slide) {
+  const res = await fetch(`${BASE}/ai/edit-slide`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt, slide }),
+  });
+  const data = await handleResponse(res, "Slide Refinement");
+  return data.slide;
+}
+

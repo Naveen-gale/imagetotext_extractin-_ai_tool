@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { History as HistoryIcon, Rocket, Sparkles, Presentation } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -142,17 +143,57 @@ function SlidePreview({ slide, template, index, isActive, onClick }) {
 }
 
 // ─── Full-screen preview modal ────────────────────────────────────────────────
-function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onClose, onPrev, onNext, template, fontStyle }) {
+function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlides, onClose, onPrev, onNext, template, fontStyle }) {
   const tmpl = TEMPLATES[template] || TEMPLATES.corporate;
   const slide = slides[currentIndex];
   const containerRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  const [editPrompt, setEditPrompt] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+  const [editError, setEditError] = useState("");
+
   useEffect(() => {
     const handleFsChange = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener("fullscreenchange", handleFsChange);
-    return () => document.removeEventListener("fullscreenchange", handleFsChange);
-  }, []);
+
+    const handleKeyDown = (e) => {
+      // Ignore if typing in input
+      if (["INPUT", "TEXTAREA"].includes(e.target.tagName) || e.target.isContentEditable) return;
+      if (e.key === "ArrowRight") onNext();
+      if (e.key === "ArrowLeft") onPrev();
+      if (e.key === "Escape" && !isFullscreen) onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFsChange);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onNext, onPrev, onClose, isFullscreen]);
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    if (!editPrompt.trim()) return;
+    setIsEditing(true);
+    setEditError("");
+    try {
+      const { editSingleSlideData } = await import("../utils/api");
+      const updatedSlide = await editSingleSlideData(editPrompt, slide);
+      
+      // Preserve custom styles if AI missed them
+      if (!updatedSlide.customStyles && slide.customStyles) {
+        updatedSlide.customStyles = slide.customStyles;
+      }
+      
+      onUpdateSlide(currentIndex, updatedSlide);
+      setEditPrompt("");
+    } catch (err) {
+      setEditError(err.message);
+    } finally {
+      setIsEditing(false);
+    }
+  };
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -209,44 +250,93 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onClose, onPrev
     onUpdateSlide(currentIndex, { ...slide, [colName]: col });
   };
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-300" role="dialog" aria-modal="true" onClick={onClose}>
-      <div className={`w-full max-w-7xl max-h-[90vh] bg-slate-900 border border-slate-800 rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden transition-all duration-300 ${isFullscreen ? '!max-w-full !max-h-screen !rounded-none !border-0 fixed inset-0 z-[110]' : 'animate-in zoom-in-95'}`} ref={containerRef} onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-slate-800 bg-slate-900/50 flex-shrink-0 z-10">
-          <div className="flex items-center gap-4">
-            <span className="px-3 py-1.5 bg-slate-800 text-slate-300 text-xs font-black uppercase tracking-widest rounded-lg border border-slate-700">{currentIndex + 1} / {slides.length}</span>
-            <span className="text-lg sm:text-xl font-black text-white truncate max-w-[200px] sm:max-w-md">{slide.title}</span>
+  return createPortal(
+    <div className="fixed inset-0 z-[110] flex flex-col bg-slate-950 animate-in fade-in duration-300" role="dialog" aria-modal="true" ref={containerRef}>
+      <div className="w-full h-full flex flex-col overflow-hidden relative">
+        <div className="absolute top-0 left-0 w-full flex items-center justify-between p-4 sm:p-6 z-50 pointer-events-none">
+          <div className="flex items-center gap-4 pointer-events-auto">
+            <span className="px-3 py-1.5 bg-slate-900/80 backdrop-blur-md text-slate-300 text-xs font-black uppercase tracking-widest rounded-lg border border-slate-700/50 shadow-lg">{currentIndex + 1} / {slides.length}</span>
           </div>
-          <div className="flex items-center gap-2">
-             <button className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:bg-slate-700 hover:text-white transition-all font-bold" onClick={toggleFullscreen} title="Toggle Fullscreen">
+          <div className="flex items-center gap-3 pointer-events-auto">
+             <button className="w-10 h-10 rounded-full bg-slate-900/80 backdrop-blur-md flex items-center justify-center text-slate-400 hover:bg-slate-700 hover:text-white transition-all font-bold shadow-lg border border-slate-700/50" onClick={toggleFullscreen} title="Toggle Fullscreen">
                {isFullscreen ? "🗗" : "⛶"}
              </button>
-             <button className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:bg-red-500/10 hover:text-red-400 transition-all font-bold" onClick={onClose} aria-label="Close preview">✕</button>
+             <button className="w-10 h-10 rounded-full bg-slate-900/80 backdrop-blur-md flex items-center justify-center text-slate-300 hover:bg-red-500 hover:text-white transition-all font-bold shadow-lg border border-slate-700/50" onClick={onClose} aria-label="Close preview">✕</button>
           </div>
         </div>
 
+        {/* Floating AI Edit Command Bar */}
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-50 w-full max-w-3xl px-4 pointer-events-auto">
+           <form onSubmit={handleEditSubmit} className="flex flex-col sm:flex-row w-full gap-2 items-center relative p-2 bg-slate-900/80 backdrop-blur-xl border border-slate-700/50 rounded-full shadow-2xl">
+               <div className="absolute left-6 top-1/2 -translate-y-1/2 text-purple-400 text-xl pointer-events-none">✨</div>
+               <input
+                 type="text"
+                 className="flex-1 bg-transparent !border-0 !ring-0 focus:outline-none pl-12 pr-4 py-3 text-sm font-bold text-white w-full placeholder-slate-400"
+                 placeholder="e.g. 'Make this slide more professional' or 'Add a slide about pricing'"
+                 value={editPrompt}
+                 onChange={(e) => setEditPrompt(e.target.value)}
+                 disabled={isEditing}
+               />
+               <button 
+                 type="submit" 
+                 disabled={isEditing || !editPrompt.trim()}
+                 className="px-6 py-3 w-full sm:w-auto bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 text-white font-black uppercase tracking-widest text-xs rounded-full transition-all shadow-lg active:scale-95"
+               >
+                 {isEditing ? "Editing..." : "Update AI"}
+               </button>
+           </form>
+           {editError && <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-red-500 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-xl">⚠️ {editError}</div>}
+        </div>
+
         <div
-          className="flex-1 relative overflow-auto flex items-center justify-center bg-slate-950/80 p-4 sm:p-8"
+          className="flex-1 relative overflow-hidden flex items-center justify-center bg-slate-950 p-1 sm:p-2 mb-4"
           style={{ fontFamily: FONT_STYLES[fontStyle]?.body || "Calibri, sans-serif" }}
         >
+          <button 
+            className="absolute left-4 sm:left-8 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-slate-800/50 hover:bg-slate-700 text-white flex items-center justify-center z-20 backdrop-blur-md transition-all shadow-xl border border-slate-700 disabled:opacity-30" 
+            onClick={onPrev} disabled={currentIndex === 0}
+          >
+            ←
+          </button>
+          
+          <button 
+            className="absolute right-4 sm:right-8 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-slate-800/50 hover:bg-slate-700 text-white flex items-center justify-center z-20 backdrop-blur-md transition-all shadow-xl border border-slate-700 disabled:opacity-30" 
+            onClick={onNext} disabled={currentIndex === slides.length - 1}
+          >
+            →
+          </button>
+
           <AnimatePresence mode="wait">
+            {isEditing && (
+              <motion.div 
+                initial={{ opacity: 0 }} 
+                animate={{ opacity: 1 }} 
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 z-40 bg-slate-950/60 backdrop-blur-md flex flex-col items-center justify-center text-white"
+              >
+                <div className="w-16 h-16 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin mb-4" />
+                <div className="text-xl font-black tracking-widest uppercase animate-pulse">AI is thinking...</div>
+                <div className="text-slate-400 text-sm mt-2">Updating your presentation deck</div>
+              </motion.div>
+            )}
+
             <motion.div
               key={currentIndex}
               initial={{ x: 300, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: -300, opacity: 0 }}
               transition={{ duration: 0.4, ease: "easeInOut" }}
-              className="relative w-full max-w-5xl aspect-[16/9] shadow-2xl rounded-xl overflow-hidden ring-1 ring-white/10"
+              className="relative w-[98vw] h-[90vh] shadow-[0_0_100px_rgba(0,0,0,0.8)] rounded-3xl overflow-hidden ring-1 ring-white/10 flex flex-col"
               style={{ background: `#${tmpl.bg}` }}
             >
               <div className="absolute top-0 left-0 w-full h-2 z-10" style={{ background: `#${tmpl.accent}` }} />
 
           {slide.type === "title" ? (
-            <div className="flex flex-col items-center justify-center h-full text-center p-8 xs:p-12">
+            <div className="flex flex-col items-center justify-center h-full text-center p-4 sm:p-8 overflow-hidden">
               <EditableText 
                 value={slide.title} onChange={(v) => updateField("title", v)}
-                baseSize={60} fontSize={slide.customStyles?.title?.fontSize} onSizeChange={(s) => updateCustomSize("title", s)}
-                className="font-black mb-6 w-full text-center" style={{ color: `#${tmpl.title}`, lineHeight: 1.2, fontFamily: "'Space Grotesk', sans-serif" }} 
+                baseSize={56} fontSize={slide.customStyles?.title?.fontSize} onSizeChange={(s) => updateCustomSize("title", s)}
+                className="font-black mb-6 w-full text-center flex-shrink-0" style={{ color: `#${tmpl.title}`, lineHeight: 1.2, fontFamily: "'Space Grotesk', sans-serif" }} 
               />
               <EditableText 
                 value={slide.subtitle || ""} onChange={(v) => updateField("subtitle", v)}
@@ -271,7 +361,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onClose, onPrev
               </div>
             </div>
           ) : slide.type === "stats" ? (
-            <div className="flex flex-col h-full p-8 xs:p-12">
+            <div className="flex flex-col h-full p-4 sm:p-8 overflow-hidden">
               <EditableText 
                 value={slide.title} onChange={(v) => updateField("title", v)}
                 baseSize={48} fontSize={slide.customStyles?.title?.fontSize} onSizeChange={(s) => updateCustomSize("title", s)}
@@ -297,7 +387,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onClose, onPrev
               </div>
             </div>
           ) : slide.type === "two-column" ? (
-            <div className="flex flex-col h-full p-8 xs:p-12">
+            <div className="flex flex-col h-full p-4 sm:p-8 overflow-hidden">
               <EditableText 
                 value={slide.title} onChange={(v) => updateField("title", v)}
                 baseSize={48} fontSize={slide.customStyles?.title?.fontSize} onSizeChange={(s) => updateCustomSize("title", s)}
@@ -342,7 +432,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onClose, onPrev
               </div>
             </div>
           ) : slide.type === "timeline" ? (
-            <div className="flex flex-col h-full p-8 xs:p-12">
+            <div className="flex flex-col h-full p-4 sm:p-8 overflow-hidden">
               <EditableText 
                 value={slide.title} onChange={(v) => updateField("title", v)}
                 baseSize={48} fontSize={slide.customStyles?.title?.fontSize} onSizeChange={(s) => updateCustomSize("title", s)}
@@ -368,28 +458,46 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onClose, onPrev
               </div>
             </div>
           ) : (
-            <div className="flex flex-col h-full p-8 xs:p-12">
+            <div className="flex flex-col h-full p-4 sm:p-8 overflow-hidden">
               <EditableText 
                 value={slide.title} onChange={(v) => updateField("title", v)}
                 baseSize={48} fontSize={slide.customStyles?.title?.fontSize} onSizeChange={(s) => updateCustomSize("title", s)}
                 component="h2" className="font-black mb-8 border-b-2 pb-4 w-full" style={{ color: `#${tmpl.highlight}`, borderColor: `#${tmpl.accent}33` }} 
               />
               <div className="flex gap-8 flex-1 w-full">
-                <div className="flex-1 flex flex-col gap-4 justify-center">
-                  {(slide.bullets || []).map((b, i) => (
-                    <div key={i} className="flex gap-4">
-                      <span className="text-2xl font-black mt-[-4px]" style={{ color: `#${tmpl.accent}` }}>•</span>
-                      <EditableText 
-                        value={b} onChange={(v) => updateArrayField("bullets", i, v)}
-                        baseSize={28} fontSize={slide.customStyles?.bullets?.[i]?.fontSize} onSizeChange={(s) => updateArraySize("bullets", i, s)}
-                        className="font-medium leading-relaxed w-full" style={{ color: `#${tmpl.body}` }}
-                      />
-                    </div>
-                  ))}
+                <div className="flex-1 flex flex-col gap-4 justify-center overflow-y-auto pr-2 custom-scrollbar">
+                  {(slide.bullets && slide.bullets.length > 0) ? (
+                    slide.bullets.map((b, i) => (
+                      <div key={i} className="flex gap-4 items-start group">
+                        <span className="text-2xl font-black mt-1 leading-none transition-transform group-hover:scale-125" style={{ color: `#${tmpl.accent}` }}>•</span>
+                        <EditableText 
+                          value={b} onChange={(v) => updateArrayField("bullets", i, v)}
+                          baseSize={24} fontSize={slide.customStyles?.bullets?.[i]?.fontSize} onSizeChange={(s) => updateArraySize("bullets", i, s)}
+                          className="font-medium leading-relaxed w-full" style={{ color: `#${tmpl.body}` }}
+                        />
+                      </div>
+                    ))
+                  ) : (
+                    <div className="opacity-40 italic text-2xl font-medium" style={{ color: `#${tmpl.body}` }}>Adding detailed content...</div>
+                  )}
                 </div>
                 {slide.image && (
-                  <div className="w-[40%] flex items-center justify-center p-4 rounded-xl border-2 bg-white/5" style={{ borderColor: `#${tmpl.accent}33` }}>
-                    <img src={slide.image} alt="Visual" className="max-w-full max-h-full object-contain rounded-lg shadow-xl" />
+                  <div className="w-[45%] flex items-center justify-center p-4 rounded-2xl border-2 bg-slate-900 border-slate-700/50 backdrop-blur-sm self-stretch relative overflow-hidden group">
+                    <div className="absolute inset-0 flex items-center justify-center opacity-20 pointer-events-none">
+                       <div className="w-12 h-12 border-4 border-slate-600 border-t-indigo-500 rounded-full animate-spin" />
+                    </div>
+                    <img 
+                      src={slide.image} 
+                      alt={slide.title} 
+                      className="relative z-10 max-w-full max-h-full object-cover rounded-xl shadow-2xl transition-all duration-500 group-hover:scale-[1.02]" 
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        const topic = encodeURIComponent(slide.imageKeyword || slide.title || "technology");
+                        e.target.src = `https://loremflickr.com/800/600/${topic}`;
+                      }}
+                    />
                   </div>
                 )}
               </div>
@@ -401,37 +509,9 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onClose, onPrev
           </motion.div>
         </AnimatePresence>
       </div>
-
-        <div className="flex items-center justify-between p-4 sm:p-6 border-t border-slate-800 bg-slate-900/50 flex-shrink-0 z-10">
-          <button 
-            className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl border border-slate-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed" 
-            onClick={onPrev} disabled={currentIndex === 0}
-          >
-            ← Prev
-          </button>
-          <div className="flex flex-wrap items-center justify-center gap-2 max-w-[50vw]">
-            {slides.map((_, i) => (
-              <button
-                key={i}
-                className={`w-2.5 h-2.5 rounded-full transition-all focus:outline-none ${i === currentIndex ? "scale-150 ring-2 ring-offset-2 ring-offset-slate-900" : "bg-slate-700 hover:bg-slate-600"}`}
-                style={{ 
-                  background: i === currentIndex ? `#${tmpl.accent}` : undefined,
-                  ['--tw-ring-color']: i === currentIndex ? `#${tmpl.accent}` : undefined
-                }}
-                onClick={() => onUpdateSlide(i, slides[i]) /* hack to jump, ignoring logic for now */}
-                aria-label={`Go to slide ${i + 1}`}
-              />
-            ))}
-          </div>
-          <button 
-            className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl border border-indigo-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed" 
-            onClick={onNext} disabled={currentIndex === slides.length - 1}
-          >
-            Next →
-          </button>
-        </div>
-      </div>
-    </div>
+     </div>
+    </div>,
+    document.body
   );
 }
 
@@ -526,6 +606,7 @@ export default function Aippt() {
       setSlides(slideData);
       setActiveSlide(0);
       setStep("preview");
+      setShowFullPreview(true); // Jump directly to full-screen mode
       
       savePptHistory({
         prompt,
@@ -919,6 +1000,14 @@ export default function Aippt() {
             newArray[idx] = updatedSlide;
             setSlides(newArray);
             pptBlobRef.current = null; // Re-generate PPT on next download
+          }}
+          onUpdateAllSlides={(newSlides) => {
+            setSlides(newSlides);
+            pptBlobRef.current = null;
+            // Prevent going out of bounds if slides were deleted
+            if (activeSlide >= newSlides.length) {
+                setActiveSlide(Math.max(0, newSlides.length - 1));
+            }
           }}
           onClose={() => setShowFullPreview(false)}
           onPrev={() => setActiveSlide((p) => Math.max(0, p - 1))}

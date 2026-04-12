@@ -184,8 +184,20 @@ export const extractKeyInfo = async (text) => {
  * @param {number} slideCount - Requested number of slides
  */
 export const generatePPTContent = async (prompt, base64Image = null, mimeType = "image/jpeg", slideCount = 8) => {
-    const systemPrompt = `You are an expert presentation designer. Generate content for a professional powerpoint.
-Respond ONLY with a valid JSON array. Do NOT include markdown, code blocks, or extra text.
+    const systemPrompt = `You are an expert presentation designer. Create a highly engaging, structured ${slideCount}-slide professional presentation based on the user's input.
+IMPORTANT INSTRUCTIONS:
+- DO NOT just copy the exact text provided by the user. You must THINK, expand on the core idea, and generate comprehensive, well-structured professional PowerPoint slide content.
+- YOUR GOAL IS TO WOW THE USER WITH AN EXPERT-LEVEL SLIDE DECK. DO NOT BE BASIC. DO NOT BE REPETITIVE.
+- IMPORTANT: Text MUST fit on the slide. If you have many bullet points, keep each bullet point concise (maximum 15 words each).
+- VARIETY IS MANDATORY: Use a diverse mix of slide types. Do NOT reuse the same slide type more than twice in the entire presentation. Ensure you use 'two-column', 'timeline', 'stats', 'quote', and 'content' types to keep it dynamic.
+- Each slide should be visually balanced. If using 'image' type, ensure 'bullets' are informative but concise.
+- EACH SLIDE MUST HAVE CONTENT: Aim for 4-5 high-quality, punchy bullet points.
+- Slide 1 MUST be type "title".
+- Slide ${slideCount} MUST be a "Thank You" slide.
+- For all slides except 'title' and 'quote', the 'title' field should be very impactful.
+- ACCURACY: Content must be highly professional and well-structured.
+
+Respond ONLY with a valid JSON object containing a "slides" array. Do NOT include markdown, code blocks, or extra text.
 Each element is a slide object:
 {
   "type": "title" | "content" | "image" | "two-column" | "quote" | "timeline" | "stats",
@@ -198,15 +210,10 @@ Each element is a slide object:
   "rightColumn": { "heading": "Right", "bullets": ["..."] },
   "stats": [{"label": "...", "value": "..."}, ...],
   "timelineItems": [{"year": "2020", "event": "Something happened"}, ...],
-  "imageKeyword": "Specific descriptive keyword for a professional photo representing this slide's topic (ONLY if the user prompt asks for images or if it adds visual value)",
+  "imageKeyword": "Extremely specific, descriptive prompt for a photorealistic image representing this slide's topic",
   "speakerNotes": "Presenter notes"
 }
-Guidelines:
-1. Generate EXACTLY ${slideCount} slides.
-2. Slide 1 MUST be type "title".
-3. Slide ${slideCount} MUST be a "Thank You" slide (type: "title", title: "Thank You", subtitle: "Any questions?").
-4. If the user prompt mentions "images" or "photos", provide a descriptive 'imageKeyword' for every relevant slide.
-5. Content must be highly accurate, professional, and well-structured.`;
+`;
 
     const userMessages = [];
     if (base64Image) {
@@ -239,8 +246,9 @@ Guidelines:
         response_format: base64Image ? undefined : { type: "json_object" },
     });
 
-    const raw = response.choices[0]?.message?.content || "[]";
-    const jsonMatch = raw.match(/(\[\s*\{[\s\S]*\}\s*\])/m)
+    const raw = response.choices[0]?.message?.content || "{}";
+    const jsonMatch = raw.match(/(\{\s*"slides"[\s\S]*\}\s*\}?)/m) 
+        || raw.match(/(\[\s*\{[\s\S]*\}\s*\])/m) 
         || raw.match(/```(?:json)?\s*([\s\S]*?)```/);
 
     const jsonStr = jsonMatch ? jsonMatch[1] : raw;
@@ -254,8 +262,9 @@ Guidelines:
         // Use LoremFlickr or Unsplash Source for reliable topic-based images
         const finalSlides = slides.map(s => {
             if (s.imageKeyword) {
-                // Topic-based high-res images
-                s.image = `https://loremflickr.com/800/600/${encodeURIComponent(s.imageKeyword.replace(/\s+/g, ','))}`;
+                // Topic-based high-res AI images using pollinations (free, precise topic matching)
+                const seed = Math.floor(Math.random() * 1000000);
+                s.image = `https://image.pollinations.ai/prompt/${encodeURIComponent(s.imageKeyword)}?width=800&height=600&seed=${seed}&model=flux&nologo=true`;
             }
             return s;
         });
@@ -272,11 +281,11 @@ Guidelines:
 export const improveTextEngine = async (text, action) => {
     let systemPrompt = "You are a direct textual assistant. Return ONLY the edited response exactly. Do NOT use quotes around your answer. Do NOT explain your answer.";
     if (action === "spelling") {
-        systemPrompt += " Fix spelling and grammatical errors of the provided text.";
+        systemPrompt += " Fix spelling and grammatical errors of the provided text while maintaining the original tone.";
     } else if (action === "autocomplete") {
-        systemPrompt += " Complete the thought or sentence provided by the user naturally but keep it concise.";
+        systemPrompt += " Complete the thought or sentence provided by the user naturally, adding professional polish and depth.";
     } else if (action === "improve") {
-        systemPrompt += " Make the text sound more professional and punchy for a PowerPoint slide.";
+        systemPrompt += " Make the text sound significantly more professional, authoritative, and engaging. Transform basic sentences into expert bullet points suitable for a high-stakes business or academic presentation.";
     } else {
         systemPrompt += " Edit the text appropriately.";
     }
@@ -292,4 +301,122 @@ export const improveTextEngine = async (text, action) => {
     });
     
     return response.choices[0]?.message?.content?.trim() || text;
+};
+
+/**
+ * Edit existing PPT slide content based on a prompt
+ * Expects the current slides JSON array and a prompt describing requested changes.
+ */
+export const editPPTContent = async (prompt, currentSlides) => {
+    const systemPrompt = `You are an expert presentation designer and editor. 
+You are given the JSON array of the CURRENT SLIDES of a presentation, and a USER REQUEST detailing how they want to edit or improve the presentation.
+IMPORTANT INSTRUCTIONS:
+- Apply the user's modifications to the presentation brilliantly. If they ask for expansion, add deep, valuable details and technical facts.
+- TEXT FIT: Keep bullet points concise (max 15-20 words) to ensure they fit the full-screen slide.
+- VARIETY: If the user asks for a theme change, adjust the layouts and details significantly. Do not keep all slides the same layout.
+- You MUST preserve any 'customStyles' objects attached to the slides exactly as they are.
+- Ensure every slide has 4-5 bullet points of high-quality information.
+- Use diverse slide types ('stats', 'timeline', 'two-column', etc.) to make the edit feel professional.
+- Respond ONLY with a valid JSON object containing a "slides" array with exactly the updated slide objects. Do NOT include extra metadata.
+- Ensure the result is still a high-quality professional presentation with excellent structural writing.`;
+
+    const userMessage = `USER REQUEST: "${prompt}"
+
+CURRENT SLIDES JSON:
+${JSON.stringify(currentSlides, null, 2)}
+
+Return the newly modified slides array as raw JSON.`;
+
+    const response = await getGroq().chat.completions.create({
+        model: "llama-3.3-70b-versatile",
+        messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userMessage },
+        ],
+        max_tokens: 6000,
+        temperature: 0.4,
+        response_format: { type: "json_object" },
+    });
+
+    const raw = response.choices[0]?.message?.content || "{}";
+    
+    try {
+        const jsonMatch = raw.match(/(\{\s*"slides"[\s\S]*\}\s*\}?)/m) 
+            || raw.match(/(\[\s*\{[\s\S]*\}\s*\])/m) 
+            || raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+            
+        const jsonStr = jsonMatch ? jsonMatch[1] : raw;
+        let parsed = JSON.parse(jsonStr);
+        let slides = Array.isArray(parsed) ? parsed : (parsed.slides || parsed.presentation || []);
+        
+        // Post-process to ensure newly added images use Pollinations
+        const finalSlides = slides.map(s => {
+            if (s.imageKeyword && (!s.image || !s.image.includes('pollinations.ai'))) {
+                const seed = Math.floor(Math.random() * 1000000);
+                s.image = `https://image.pollinations.ai/prompt/${encodeURIComponent(s.imageKeyword)}?width=800&height=600&seed=${seed}&model=flux&nologo=true`;
+            }
+            return s;
+        });
+
+        return finalSlides;
+    } catch (parseErr) {
+        console.error("AI JSON Parse Error:", parseErr.message, "Raw was:", raw);
+        throw new Error("AI did not return valid edited slide JSON. Please try again.");
+    }
+};
+
+/**
+ * Edit a SINGLE specific slide based on a prompt.
+ * Expects a single slide object.
+ */
+export const editSingleSlideContent = async (prompt, slide) => {
+    const systemPrompt = `You are an expert presentation designer. 
+You are given ONE CURRENT SLIDE and a USER REQUEST to refine or improve it.
+IMPORTANT INSTRUCTIONS:
+- Apply the user's modifications ONLY to this single slide brilliantly.
+- If they ask for more detail, add deep, valuable technical facts.
+- TEXT FIT: Keep bullet points concise (max 15-20 words) to ensure they fit the full-screen slide.
+- Preserve any 'customStyles' exactly.
+- Return ONLY the updated slide object as valid JSON.
+- DO NOT return an array. Return a single object.
+- If the prompt implies a visual change, update 'imageKeyword' appropriately.`;
+
+    const userMessage = `USER REQUEST: "${prompt}"
+
+CURRENT SLIDE JSON:
+${JSON.stringify(slide, null, 2)}
+
+Return the updated slide as a JSON object.`;
+
+    const response = await getGroq().chat.completions.create({
+        model: "llama-3.3-70b-versatile",
+        messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userMessage },
+        ],
+        max_tokens: 3000,
+        temperature: 0.3,
+        response_format: { type: "json_object" },
+    });
+
+    const raw = response.choices[0]?.message?.content || "{}";
+
+    try {
+        let updatedSlide = JSON.parse(raw);
+        // If it returns a slides array by mistake, pick first
+        if (updatedSlide.slides && Array.isArray(updatedSlide.slides)) {
+            updatedSlide = updatedSlide.slides[0];
+        }
+
+        // Fresh image if keyword changed
+        if (updatedSlide.imageKeyword && updatedSlide.imageKeyword !== slide.imageKeyword) {
+            const seed = Math.floor(Math.random() * 1000000);
+            updatedSlide.image = `https://image.pollinations.ai/prompt/${encodeURIComponent(updatedSlide.imageKeyword)}?width=800&height=600&seed=${seed}&model=flux&nologo=true`;
+        }
+
+        return updatedSlide;
+    } catch (err) {
+        console.error("Single Slide Edit Parse Error:", err);
+        throw new Error("Failed to refine slide. Please try again.");
+    }
 };

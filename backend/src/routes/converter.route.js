@@ -12,6 +12,8 @@ import {
     generatePPT,
     uploadPPT,
     improveSlideText,
+    editPPT,
+    editSingleSlide,
 } from "../controllers/converter.controller.js";
 
 const router = Router();
@@ -25,7 +27,7 @@ const pptImageUpload = multer({
         destination: (req, file, cb) => cb(null, uploadsDir),
         filename: (req, file, cb) => {
             const ext = path.extname(file.originalname);
-            cb(null, `ppt-img-${Date.now()}${ext}`);
+            cb(null, `ppt-img-\${Date.now()}\${ext}`);
         },
     }),
     limits: { fileSize: 20 * 1024 * 1024 },
@@ -38,7 +40,7 @@ const pptImageUpload = multer({
 const pptFileUpload = multer({
     storage: multer.diskStorage({
         destination: (req, file, cb) => cb(null, uploadsDir),
-        filename: (req, file, cb) => cb(null, `share-ppt-${Date.now()}.pptx`),
+        filename: (req, file, cb) => cb(null, `share-ppt-\${Date.now()}.pptx`),
     }),
     limits: { fileSize: 50 * 1024 * 1024 },
 }).single("file");
@@ -54,6 +56,8 @@ router.post("/ai/extract-info", extractInfo);
 
 // AI PPT Generation
 router.post("/ai/generate-ppt", pptImageUpload, generatePPT);
+router.post("/ai/edit-ppt", editPPT);
+router.post("/ai/edit-slide", editSingleSlide);
 
 // Upload generated PPT to ImageKit for sharing
 router.post("/upload-ppt", pptFileUpload, uploadPPT);
