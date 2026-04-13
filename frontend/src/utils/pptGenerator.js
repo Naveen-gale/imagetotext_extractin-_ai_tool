@@ -2,55 +2,125 @@ import pptxgen from "pptxgenjs";
 
 // ─── Template Definitions ────────────────────────────────────────────────────
 export const TEMPLATES = {
-  corporate: {
-    name: "Corporate Blue",
-    emoji: "🏢",
-    bg: "1a2340",
-    accent: "3b82f6",
-    title: "FFFFFF",
-    body: "cbd5e1",
-    sub: "94a3b8",
-    highlight: "60a5fa",
+  modern: {
+    name: "Modern Sleek",
+    emoji: "📱",
+    bg: "0f172a",
+    accent: "38bdf8",
+    title: "f8fafc",
+    body: "94a3b8",
+    sub: "64748b",
+    highlight: "0ea5e9",
   },
-  creative: {
-    name: "Creative Purple",
-    emoji: "🎨",
-    bg: "1e1433",
-    accent: "a855f7",
-    title: "FFFFFF",
-    body: "e2d9f3",
-    sub: "c084fc",
-    highlight: "c084fc",
+  gradient: {
+    name: "Vibrant Gradient", 
+    emoji: "🌈",
+    bg: "1e1b4b",
+    accent: "f43f5e",
+    title: "ffffff",
+    body: "e2e8f0",
+    sub: "fb7185",
+    highlight: "fb7185",
   },
   minimal: {
-    name: "Minimal Dark",
-    emoji: "⬛",
-    bg: "111827",
-    accent: "10b981",
-    title: "FFFFFF",
+    name: "Minimalist Light",
+    emoji: "⚪",
+    bg: "f8fafc",
+    accent: "0f172a",
+    title: "0f172a",
+    body: "475569",
+    sub: "94a3b8",
+    highlight: "0f172a",
+  },
+  dark: {
+    name: "Midnight Neon",
+    emoji: "🌃",
+    bg: "020617",
+    accent: "22c55e",
+    title: "ffffff",
+    body: "94a3b8",
+    sub: "4ade80",
+    highlight: "22c55e",
+  },
+  corporate: {
+    name: "Executive Blue",
+    emoji: "💼",
+    bg: "1e293b",
+    accent: "2563eb",
+    title: "ffffff",
+    body: "cbd5e1",
+    sub: "94a3b8",
+    highlight: "3b82f6",
+  },
+  cyberpunk: {
+    name: "Cyber Future",
+    emoji: "🤖",
+    bg: "09090b",
+    accent: "d946ef",
+    title: "ffffff",
+    body: "a1a1aa",
+    sub: "e879f9",
+    highlight: "f0abfc",
+  },
+  eco: {
+    name: "Eco Nature",
+    emoji: "🌿",
+    bg: "064e3b",
+    accent: "a3e635",
+    title: "f7fee7",
     body: "d1fae5",
-    sub: "6ee7b7",
-    highlight: "34d399",
+    sub: "bef264",
+    highlight: "bef264",
   },
-  warm: {
-    name: "Warm Sunset",
-    emoji: "🌅",
-    bg: "1c0f0f",
-    accent: "f97316",
-    title: "FFFFFF",
-    body: "fed7aa",
-    sub: "fb923c",
-    highlight: "f97316",
+  luxury: {
+    name: "Royal Gold",
+    emoji: "👑",
+    bg: "1c1917",
+    accent: "eab308",
+    title: "ffffff",
+    body: "d6d3d1",
+    sub: "facc15",
+    highlight: "fde047",
   },
-  ocean: {
-    name: "Ocean Breeze",
-    emoji: "🌊",
-    bg: "0c1a2e",
-    accent: "06b6d4",
-    title: "FFFFFF",
-    body: "cffafe",
-    sub: "67e8f9",
-    highlight: "22d3ee",
+  playful: {
+    name: "Candy Pop",
+    emoji: "🍭",
+    bg: "fdf2f8",
+    accent: "ec4899",
+    title: "831843",
+    body: "be185d",
+    sub: "f472b6",
+    highlight: "db2777",
+  },
+  academic: {
+    name: "Scholar Paper",
+    emoji: "📜",
+    bg: "f5f5f4",
+    accent: "57534e",
+    title: "1c1917",
+    body: "44403c",
+    sub: "78716c",
+    highlight: "292524",
+  },
+  future: {
+    name: "Abstract Glass",
+    emoji: "💎",
+    bg: "172554",
+    accent: "6366f1",
+    title: "ffffff",
+    body: "bfdbfe",
+    sub: "818cf8",
+    highlight: "a5b4fc",
+  },
+  bold: {
+    name: "High Impact",
+    emoji: "💥",
+    bg: "000000",
+    accent: "ef4444",
+    title: "ffffff",
+    body: "d1d5db",
+    sub: "f87171",
+    highlight: "fca5a5",
   },
 };
 
@@ -65,7 +135,7 @@ export const FONT_STYLES = {
 
 // ─── Main generator ───────────────────────────────────────────────────────────
 export async function generatePptx(slides, templateKey = "corporate", fontStyleKey = "modern") {
-  const tmpl = TEMPLATES[templateKey] || TEMPLATES.corporate;
+  const tmpl = typeof templateKey === "object" ? templateKey : (TEMPLATES[templateKey] || TEMPLATES.corporate);
   const fonts = FONT_STYLES[fontStyleKey] || FONT_STYLES.modern;
 
   const prs = new pptxgen();
@@ -76,7 +146,7 @@ export async function generatePptx(slides, templateKey = "corporate", fontStyleK
 
   for (const slide of slides) {
     const sl = prs.addSlide();
-    sl.background = { color: tmpl.bg };
+    sl.background = { color: slide.bgColor || tmpl.bg };
 
     // Branding - ONLY ON FIRST SLIDE
     if (slides.indexOf(slide) === 0) {
@@ -90,15 +160,18 @@ export async function generatePptx(slides, templateKey = "corporate", fontStyleK
       });
     }
 
-    // Add Slide Image if present
-    if (slide.image) {
-      // Use a standard position for images across most slide types (Right side)
+    // Add Multiple Slide Images if present
+    const allImages = slide.images || (slide.image ? [slide.image] : []);
+    allImages.forEach((img, idx) => {
+      // Offset images if multiple
+      const xPos = 8.5 + (idx * 0.2);
+      const yPos = 1.5 + (idx * 0.2);
       sl.addImage({
-        path: slide.image,
-        x: 8.5, y: 1.5, w: 4.3, h: 4.8,
+        path: img,
+        x: xPos, y: yPos, w: 4.3, h: 4.8,
         rounding: true,
       });
-    }
+    });
 
     switch (slide.type) {
       case "title":

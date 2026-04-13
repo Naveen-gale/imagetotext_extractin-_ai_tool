@@ -276,6 +276,144 @@ Each element is a slide object:
 };
 
 /**
+ * PHASE 1: Generate an outline for the presentation
+ */
+export const generatePPTOutline = async (topic, slideCount = 8, styleGuide = null) => {
+    const isAuto = slideCount === 0;
+    const styleContext = styleGuide ? `Adhere to this design style guide extracted from a reference: ${JSON.stringify(styleGuide)}` : "";
+    
+    const systemPrompt = `You are a professional presentation architect. Your task is to plan a high-quality presentation.
+    - Create a coherent narrative flow.
+    - ${isAuto ? "Choose an appropriate slide count (typically 6-12) based on the topic depth." : `Plan exactly ${slideCount} slides.`}
+    - For each slide, determine: "type", "title", and a "description" of what the content should cover.
+    - ${styleContext}
+    - IMPORTANT: If styleGuide is provided, use it ONLY for colors and fonts. ABSOLUTELY DO NOT use its topics or words. Follow the Topic below strictly.
+    - Slide types: "title", "content", "image", "two-column", "quote", "timeline", "stats".
+    - Respond strictly with JSON: { "outline": [ { "type": "...", "title": "...", "description": "..." }, ... ] }`;
+
+    const response = await getGroq().chat.completions.create({
+        model: "llama-3.3-70b-versatile",
+        messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `Outline a ${isAuto ? "professionally structured" : slideCount + "-slide"} presentation about: ${topic}` },
+        ],
+        response_format: { type: "json_object" },
+        max_tokens: 1000,
+        temperature: 0.5,
+    });
+
+    try {
+        const data = JSON.parse(response.choices[0].message.content);
+        return data.outline || [];
+    } catch (e) {
+        throw new Error("Failed to generate outline.");
+    }
+};
+
+/**
+ * Generate a new slide that fits contextually into an existing deck
+ */
+export const generateNewInsertedSlide = async (topic, currentSlides, insertIndex, styleGuide = null) => {
+    const prevSlide = insertIndex > 0 ? currentSlides[insertIndex - 1] : null;
+    const nextSlide = insertIndex < currentSlides.length ? currentSlides[insertIndex] : null;
+
+    const styleContext = styleGuide ? `Adhere to this design style guide extracted from a reference: ${JSON.stringify(styleGuide)}` : "";
+
+    const systemPrompt = `You are an expert presentation designer. Generate ONE new slide to be inserted into a deck about "${topic}".
+    CONTEXT:
+    ${prevSlide ? `- Previous Slide: "${prevSlide.title}"` : "- This is the first slide."}
+    ${nextSlide ? `- Following Slide: "${nextSlide.title}"` : "- This is the last slide."}
+    
+    GOAL: Create a slide that bridges the content or adds missing depth.
+    - ${styleContext}
+    - IMPORTANT: Use styleGuide ONLY for visual theming. DO NOT use its content.
+    - Choose fitting type: "content", "image", "two-column", "quote", "timeline", "stats".
+    - Respond strictly with JSON for ONE slide object.`;
+
+    const response = await getGroq().chat.completions.create({
+        model: "llama-3.3-70b-versatile",
+        messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: "Generate the best slide to fit this context." },
+        ],
+        response_format: { type: "json_object" },
+        max_tokens: 1000,
+        temperature: 0.7,
+    });
+
+    try {
+        const slide = JSON.parse(response.choices[0].message.content);
+        return slide;
+    } catch (e) {
+        throw new Error("Failed to generate contextual slide.");
+    }
+};
+
+/**
+ * PHASE 2: Generate content for a single slide based on the outline
+ */
+export const generateSingleSlideContent = async (topic, outline, slideIndex, styleGuide = null) => {
+    const slideMeta = outline[slideIndex];
+    if (!slideMeta) throw new Error("Invalid slide index.");
+
+    const styleContext = styleGuide ? `Follow these style hints: ${JSON.stringify(styleGuide)}` : "";
+
+    const systemPrompt = `You are an expert slide content creator. Generate detailed, professional content for ONE specific slide in a presentation about "${topic}".
+    SLIDE CONTEXT: Slide #${slideIndex + 1} of ${outline.length}.
+    DESIRED TOPIC: "${slideMeta.title}"
+    DESCRIPTION: "${slideMeta.description}"
+    ${styleContext}
+    - IMPORTANT: If styleGuide exists, use it ONLY for visual properties. DO NOT repeat its content.
+    - Use sophisticated, senior-level language.
+    - For 'stats' slides, provide an array "stats": [{ "label": "...", "value": "..." }].
+    - For 'timeline' slides, provide "timelineItems": [{ "year": "...", "event": "..." }].
+    - For 'image' or 'content' slides, also provide an "imageKeyword" for visual search.
+    - Response MUST be a JSON object with properties fitting the type "${slideMeta.type}".
+    - Max 5 bullet points.
+    
+    JSON STRUCTURE (MATCH THE TYPE):
+    {
+      "type": "${slideMeta.type}",
+      "title": "${slideMeta.title}",
+      "subtitle": "...",
+      "bullets": ["...", "..."],
+      "quote": "...",
+      "author": "...",
+        "leftColumn": { "heading": "...", "bullets": ["..."] },
+        "rightColumn": { "heading": "...", "bullets": ["..."] },
+        "stats": [{"label": "...", "value": "..."}, ...],
+        "timelineItems": [{"year": "...", "event": "..."}, ...],
+      "imageKeyword": "Extremely descriptive prompt",
+      "speakerNotes": "..."
+    }`;
+
+    const response = await getGroq().chat.completions.create({
+        model: "llama-3.3-70b-versatile",
+        messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `Generate content for this slide.` },
+        ],
+        response_format: { type: "json_object" },
+        max_tokens: 800, // PER SLIDE
+        temperature: 0.4,
+    });
+
+    try {
+        const slide = JSON.parse(response.choices[0].message.content);
+        
+        // Post-process image if needed
+        if (slide.imageKeyword) {
+            const seed = Math.floor(Math.random() * 1000000);
+            slide.image = `https://image.pollinations.ai/prompt/${encodeURIComponent(slide.imageKeyword)}?width=800&height=600&seed=${seed}&model=flux&nologo=true`;
+        }
+        
+        return slide;
+    } catch (e) {
+        throw new Error(`Failed to generate slide content for slide ${slideIndex + 1}`);
+    }
+};
+
+/**
  * Text improvement engine using Groq
  */
 export const improveTextEngine = async (text, action) => {

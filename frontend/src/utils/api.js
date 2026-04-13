@@ -108,6 +108,44 @@ export async function generatePptData({ prompt, image, slideCount = 8 }) {
   return data.slides;
 }
 
+export async function generatePptOutline(prompt, slideCount, styleGuide = null) {
+  const res = await fetch(`${BASE}/ai/generate-outline`, {
+    method: "POST",
+    headers: getHeaders(),
+    body: JSON.stringify({ prompt, slideCount, styleGuide }),
+  });
+  const data = await handleResponse(res, "Outline Generation");
+  return data.outline;
+}
+
+export async function generatePptSlide(topic, outline, slideIndex, styleGuide = null) {
+  const res = await fetch(`${BASE}/ai/generate-slide`, {
+    method: "POST",
+    headers: getHeaders(),
+    body: JSON.stringify({ topic, outline, slideIndex, styleGuide }),
+  });
+  const data = await handleResponse(res, "Slide Generation");
+  return data.slide;
+}
+
+export async function analyzeReferencePpt(file) {
+  const fd = new FormData();
+  fd.append("reference", file);
+  const res = await fetch(`${BASE}/ai/analyze-reference`, { method: "POST", body: fd });
+  const data = await handleResponse(res, "Reference Analysis");
+  return data.data;
+}
+
+export async function generateInsertedSlideData(topic, currentSlides, insertIndex, styleGuide = null) {
+  const res = await fetch(`${BASE}/ai/generate-inserted-slide`, {
+    method: "POST",
+    headers: getHeaders(),
+    body: JSON.stringify({ topic, currentSlides, insertIndex, styleGuide }),
+  });
+  const data = await handleResponse(res, "Inserted Slide Generation");
+  return data.slide;
+}
+
 /**
  * Edit existing PPT data using a natural language prompt
  */

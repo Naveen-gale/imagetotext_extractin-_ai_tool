@@ -1,6 +1,7 @@
-import { extractTextFromImage, summarizeText, translateText, fixGrammar, extractKeyInfo, generatePPTContent } from "../services/groq.service.js";
+import { extractTextFromImage, summarizeText, translateText, fixGrammar, extractKeyInfo, generatePPTContent, generatePPTOutline, generateSingleSlideContent } from "../services/groq.service.js";
 import { uploadToImageKit } from "../services/imagekit.service.js";
 import { extractDocumentText, formatDocumentTextWithAI } from "../services/document.service.js";
+import { analyzePPTX } from "../services/pptAnalysis.service.js";
 import fs from "fs/promises";
 
 /**
@@ -186,6 +187,70 @@ export const generatePPT = async (req, res) => {
     try {
         const slides = await generatePPTContent(prompt, base64Image, mimeType, slideCount);
         return res.status(200).json({ success: true, slides });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+/**
+ * NEW: Generate Outline
+ */
+export const generateOutline = async (req, res) => {
+    const { prompt, slideCount, styleGuide } = req.body;
+    if (!prompt) return res.status(400).json({ success: false, error: "Prompt is required." });
+
+    try {
+        const outline = await generatePPTOutline(prompt, slideCount || 8, styleGuide);
+        return res.status(200).json({ success: true, outline });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+/**
+ * NEW: Generate Single Slide
+ */
+export const generateSlide = async (req, res) => {
+    const { topic, outline, slideIndex, styleGuide } = req.body;
+    if (!topic || !outline || slideIndex === undefined) {
+        return res.status(400).json({ success: false, error: "Missing topic, outline, or slideIndex." });
+    }
+
+    try {
+        const slide = await generateSingleSlideContent(topic, outline, slideIndex, styleGuide);
+        return res.status(200).json({ success: true, slide });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+/**
+ * NEW: Analyze Reference PPTX
+ */
+export const analyzeReference = async (req, res) => {
+    if (!req.file) return res.status(400).json({ success: false, error: "No file uploaded." });
+
+    try {
+        const data = await analyzePPTX(req.file.path);
+        return res.status(200).json({ success: true, data });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+/**
+ * NEW: Generate a contextual slide for insertion
+ */
+export const generateInsertedSlide = async (req, res) => {
+    const { topic, currentSlides, insertIndex, styleGuide } = req.body;
+    if (!topic || !currentSlides || insertIndex === undefined) {
+        return res.status(400).json({ success: false, error: "Missing topic, currentSlides, or insertIndex." });
+    }
+
+    try {
+        const { generateNewInsertedSlide } = await import("../services/groq.service.js");
+        const slide = await generateNewInsertedSlide(topic, currentSlides, insertIndex, styleGuide);
+        return res.status(200).json({ success: true, slide });
     } catch (error) {
         return res.status(500).json({ success: false, error: error.message });
     }

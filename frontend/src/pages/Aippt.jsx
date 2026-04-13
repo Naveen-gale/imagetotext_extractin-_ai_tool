@@ -3,17 +3,18 @@ import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { History as HistoryIcon, Rocket, Sparkles, Presentation } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { generatePptData, uploadPptFile, savePptHistory } from "../utils/api";
+import { generatePptData, uploadPptFile, savePptHistory, generatePptOutline, generatePptSlide, analyzeReferencePpt, generateInsertedSlideData } from "../utils/api";
 import { generatePptx, TEMPLATES, FONT_STYLES } from "../utils/pptGenerator";
 import EditableText from "../components/EditableText";
 import HistoryModal from "../components/modals/HistoryModal";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
-const SLIDE_COUNTS = [4, 6, 8, 10, 12, 15];
+const SLIDE_COUNTS = [0, 4, 6, 8, 10, 12, 15]; // 0 is Auto
 
 // ─── Slide Preview component ─────────────────────────────────────────────────
 function SlidePreview({ slide, template, index, isActive, onClick }) {
   const tmpl = TEMPLATES[template] || TEMPLATES.corporate;
+  const fmtCol = (c) => c ? (c.startsWith("#") ? c : `#${c}`) : "#000000";
 
   const renderContent = () => {
     if (slide.type === "title") {
@@ -111,6 +112,15 @@ function SlidePreview({ slide, template, index, isActive, onClick }) {
             </div>
           )}
         </div>
+        
+        {/* Extra Text (Full Control) */}
+        {slide.extraText?.length > 0 && (
+          <div className="mt-2 flex flex-col gap-1">
+            {slide.extraText.map((txt, i) => (
+              <div key={i} className="text-[8px] sm:text-[10px] font-medium opacity-70" style={{ color: fmtCol(tmpl.body) }}>{txt}</div>
+            ))}
+          </div>
+        )}
       </div>
     );
   };
@@ -123,29 +133,40 @@ function SlidePreview({ slide, template, index, isActive, onClick }) {
         isActive ? "ring-4 ring-offset-2 ring-offset-slate-900 shadow-2xl scale-[1.02]" : "ring-1 ring-white/10"
       }`}
       style={{
-        background: `#${tmpl.bg}`,
-        ['--tw-ring-color']: isActive ? `#${tmpl.accent}` : undefined
+        background: fmtCol(tmpl.bg),
+        ['--tw-ring-color']: isActive ? fmtCol(tmpl.accent) : undefined
       }}
       onClick={onClick}
       role="button"
       aria-label={`Slide ${index + 1}: ${slide.title}`}
     >
-      <div className="absolute top-0 left-0 w-full h-1.5" style={{ background: `#${tmpl.accent}` }} />
+      <div className="absolute top-0 left-0 w-full h-1.5" style={{ background: fmtCol(tmpl.accent) }} />
+      
+      {/* Delete button (Full Control) */}
+      <button 
+        className="absolute top-3 right-3 w-8 h-8 rounded-full bg-red-500/20 hover:bg-red-500 text-red-500 hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all z-20 border border-red-500/30"
+        onClick={(e) => { e.stopPropagation(); slide.onDelete(); }}
+        title="Delete Slide"
+      >
+        🗑️
+      </button>
+
       <div className="absolute inset-0 overflow-hidden">
         {renderContent()}
       </div>
-      <div className="absolute bottom-2 right-3 text-[8px] font-black opacity-50" style={{ color: `#${tmpl.text}` }}>{index + 1}</div>
+      <div className="absolute bottom-2 right-3 text-[8px] font-black opacity-50" style={{ color: fmtCol(tmpl.body) }}>{index + 1}</div>
       {isFirstSlide && (
-        <div className="absolute bottom-2 left-3 text-[8px] font-black uppercase tracking-widest opacity-80" style={{ color: `#${tmpl.accent}` }}>VisionText AI</div>
+        <div className="absolute bottom-2 left-3 text-[8px] font-black uppercase tracking-widest opacity-80" style={{ color: fmtCol(tmpl.accent) }}>VisionText AI</div>
       )}
     </div>
   );
 }
 
 // ─── Full-screen preview modal ────────────────────────────────────────────────
-function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlides, onClose, onPrev, onNext, template, fontStyle }) {
-  const tmpl = TEMPLATES[template] || TEMPLATES.corporate;
+function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlides, onClose, onPrev, onNext, template, customColors, fontStyle }) {
+  const tmpl = customColors || TEMPLATES[template] || TEMPLATES.corporate;
   const slide = slides[currentIndex];
+  const fmtCol = (c) => c ? (c.startsWith("#") ? c : `#${c}`) : "#000000";
   const containerRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -195,6 +216,17 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
     }
   };
 
+  const handleInsertBlank = () => {
+    const newSlide = {
+      type: "content",
+      title: "New Slide",
+      bullets: ["New point..."]
+    };
+    const newSlides = [...slides];
+    newSlides.splice(currentIndex + 1, 0, newSlide);
+    onUpdateAllSlides(newSlides);
+  };
+
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       containerRef.current.requestFullscreen().catch(err => {
@@ -242,12 +274,64 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
     const col = { ...slide[colName] };
     if (arrIndex !== null) {
       const arr = [...(col[attr] || [])];
-      arr[arrIndex] = newText;
+      if (newText === null) {
+        arr.splice(arrIndex, 1);
+      } else {
+        arr[arrIndex] = newText;
+      }
       col[attr] = arr;
     } else {
       col[attr] = newText;
     }
     onUpdateSlide(currentIndex, { ...slide, [colName]: col });
+  };
+
+  const addItem = (field, defaultValue) => {
+    const arr = [...(slide[field] || [])];
+    arr.push(defaultValue);
+    onUpdateSlide(currentIndex, { ...slide, [field]: arr });
+  };
+
+  const removeItem = (field, index) => {
+    const arr = [...(slide[field] || [])];
+    arr.splice(index, 1);
+    onUpdateSlide(currentIndex, { ...slide, [field]: arr });
+  };
+
+  const toggleImage = () => {
+    if (slide.image) {
+      onUpdateSlide(currentIndex, { ...slide, image: null });
+    } else {
+      onUpdateSlide(currentIndex, { ...slide, images: [...(slide.images || []), "https://loremflickr.com/800/600/" + encodeURIComponent(slide.title)] });
+    }
+  };
+
+  const removeImage = (idx) => {
+    const arr = [...(slide.images || [])];
+    arr.splice(idx, 1);
+    onUpdateSlide(currentIndex, { ...slide, images: arr });
+  };
+
+  const updateBgColor = (col) => {
+    onUpdateSlide(currentIndex, { ...slide, bgColor: col });
+  };
+
+  const addExtraText = () => {
+    const arr = [...(slide.extraText || [])];
+    arr.push("New text block...");
+    onUpdateSlide(currentIndex, { ...slide, extraText: arr });
+  };
+
+  const removeExtraText = (i) => {
+    const arr = [...(slide.extraText || [])];
+    arr.splice(i, 1);
+    onUpdateSlide(currentIndex, { ...slide, extraText: arr });
+  };
+
+  const updateExtraText = (i, val) => {
+    const arr = [...(slide.extraText || [])];
+    arr[i] = val;
+    onUpdateSlide(currentIndex, { ...slide, extraText: arr });
   };
 
   return createPortal(
@@ -257,7 +341,39 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
           <div className="flex items-center gap-4 pointer-events-auto">
             <span className="px-3 py-1.5 bg-slate-900/80 backdrop-blur-md text-slate-300 text-xs font-black uppercase tracking-widest rounded-lg border border-slate-700/50 shadow-lg">{currentIndex + 1} / {slides.length}</span>
           </div>
-          <div className="flex items-center gap-3 pointer-events-auto">
+           <div className="flex items-center gap-3 pointer-events-auto">
+             <div className="flex items-center bg-slate-800 rounded-full px-1 py-1 border border-slate-700">
+                <input 
+                  type="color" 
+                  value={fmtCol(slide.bgColor || tmpl.bg)}
+                  onChange={(e) => updateBgColor(e.target.value)}
+                  className="w-8 h-8 rounded-full bg-transparent border-none cursor-pointer p-0 overflow-hidden"
+                  title="Slide Background Override"
+                />
+                <button 
+                  onClick={() => updateBgColor(null)}
+                  className="text-[10px] px-2 py-1 text-slate-400 hover:text-white"
+                  title="Reset Background"
+                >
+                  Reset
+                </button>
+              </div>
+              <button 
+                onClick={handleInsertBlank}
+                className="bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 transition-all active:scale-95"
+              >
+                <span>➕</span> New Slide
+              </button>
+             <select 
+               className="bg-slate-900/80 backdrop-blur-md text-slate-300 text-xs font-black uppercase tracking-widest rounded-lg border border-slate-700/50 px-3 py-2 outline-none"
+               value={slide.type}
+               onChange={(e) => onUpdateSlide(currentIndex, { ...slide, type: e.target.value })}
+             >
+               {["title", "content", "image", "two-column", "quote", "timeline", "stats"].map(t => (
+                 <option key={t} value={t}>{t.toUpperCase()}</option>
+               ))}
+             </select>
+
              <button className="w-10 h-10 rounded-full bg-slate-900/80 backdrop-blur-md flex items-center justify-center text-slate-400 hover:bg-slate-700 hover:text-white transition-all font-bold shadow-lg border border-slate-700/50" onClick={toggleFullscreen} title="Toggle Fullscreen">
                {isFullscreen ? "🗗" : "⛶"}
              </button>
@@ -327,36 +443,72 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
               exit={{ x: -300, opacity: 0 }}
               transition={{ duration: 0.4, ease: "easeInOut" }}
               className="relative w-[98vw] h-[90vh] shadow-[0_0_100px_rgba(0,0,0,0.8)] rounded-3xl overflow-hidden ring-1 ring-white/10 flex flex-col"
-              style={{ background: `#${tmpl.bg}` }}
+              style={{ background: fmtCol(tmpl.bg) }}
             >
-              <div className="absolute top-0 left-0 w-full h-2 z-10" style={{ background: `#${tmpl.accent}` }} />
+              <div className="absolute top-0 left-0 w-full h-2 z-10" style={{ background: fmtCol(tmpl.accent) }} />
 
-          {slide.type === "title" ? (
+          {/* Empty State / Dashboard (Pro Builder) */}
+          {(slide.type === "blank" || (!slide.title && !slide.quote && !slide.bullets?.length && !slide.stats?.length && !slide.timelineItems?.length)) ? (
+             <div className="flex flex-col items-center justify-center h-full p-20 animate-in zoom-in duration-500">
+                <div className="text-4xl mb-4" style={{ color: fmtCol(tmpl.accent) }}>🏗️</div>
+                <h2 className="text-3xl font-black mb-2" style={{ color: fmtCol(tmpl.title) }}>Empty Slide</h2>
+                <p className="text-sm opacity-60 mb-12 text-center max-w-md" style={{ color: fmtCol(tmpl.sub) }}>Start building your manual slide by selecting a layout or adding elements below.</p>
+                
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6 w-full max-w-4xl">
+                  {[
+                    { id: 'title', icon: '📝', label: 'Title Slide' },
+                    { id: 'content', icon: '📄', label: 'List Content' },
+                    { id: 'stats', icon: '📊', label: 'Data Stats' },
+                    { id: 'timeline', icon: '⏳', label: 'Timeline' },
+                    { id: 'image', icon: '🖼️', label: 'Visual Image' },
+                    { id: 'two-column', icon: '👥', label: 'Conversion' },
+                    { id: 'quote', icon: '💬', label: 'Quote' }
+                  ].map(l => (
+                    <button 
+                      key={l.id}
+                      onClick={() => onUpdateSlide(currentIndex, { ...slide, type: l.id, title: "New Heading", bullets: l.id === 'content' ? ["Point 1"] : [] })}
+                      className="flex flex-col items-center gap-3 p-6 rounded-2xl bg-white/5 border-2 border-white/5 hover:border-purple-500/50 hover:bg-white/10 transition-all group"
+                    >
+                      <span className="text-3xl group-hover:scale-125 transition-transform">{l.icon}</span>
+                      <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: fmtCol(tmpl.accent) }}>{l.label}</span>
+                    </button>
+                  ))}
+                </div>
+                
+                <button 
+                  onClick={addExtraText}
+                  className="mt-12 group flex items-center gap-3 px-8 py-4 bg-slate-900 border border-slate-700 rounded-2xl hover:bg-slate-800 transition-all"
+                >
+                  <span className="text-xl group-hover:rotate-12 transition-transform">➕</span>
+                  <span className="text-xs font-black uppercase tracking-widest text-slate-400 group-hover:text-white">Add Individual Text Block</span>
+                </button>
+             </div>
+          ) : slide.type === "title" ? (
             <div className="flex flex-col items-center justify-center h-full text-center p-4 sm:p-8 overflow-hidden">
               <EditableText 
                 value={slide.title} onChange={(v) => updateField("title", v)}
                 baseSize={56} fontSize={slide.customStyles?.title?.fontSize} onSizeChange={(s) => updateCustomSize("title", s)}
-                className="font-black mb-6 w-full text-center flex-shrink-0" style={{ color: `#${tmpl.title}`, lineHeight: 1.2, fontFamily: "'Space Grotesk', sans-serif" }} 
+                className="font-black mb-6 w-full text-center flex-shrink-0" style={{ color: fmtCol(tmpl.title), lineHeight: 1.2, fontFamily: "'Space Grotesk', sans-serif" }} 
               />
               <EditableText 
                 value={slide.subtitle || ""} onChange={(v) => updateField("subtitle", v)}
                 baseSize={30} fontSize={slide.customStyles?.subtitle?.fontSize} onSizeChange={(s) => updateCustomSize("subtitle", s)}
-                className="font-bold opacity-80 w-full text-center" style={{ color: `#${tmpl.sub}` }} 
+                className="font-bold opacity-80 w-full text-center" style={{ color: fmtCol(tmpl.sub) }} 
               />
             </div>
           ) : slide.type === "quote" ? (
             <div className="flex flex-col justify-center h-full p-12 xs:p-20 relative">
-              <div className="text-[120px] font-serif leading-none absolute top-12 left-12 opacity-20" style={{ color: `#${tmpl.accent}` }}>"</div>
+              <div className="text-[120px] font-serif leading-none absolute top-12 left-12 opacity-20" style={{ color: fmtCol(tmpl.accent) }}>"</div>
               <EditableText 
                 value={slide.quote || slide.title || ""} onChange={(v) => updateField("quote", v)}
                 baseSize={40} fontSize={slide.customStyles?.quote?.fontSize} onSizeChange={(s) => updateCustomSize("quote", s)}
-                className="font-bold italic relative z-10 w-full" style={{ color: `#${tmpl.title}`, lineHeight: 1.4 }} 
+                className="font-bold italic relative z-10 w-full" style={{ color: fmtCol(tmpl.title), lineHeight: 1.4 }} 
               />
               <div className="mt-8 text-right relative z-10">
                 <EditableText 
                   value={slide.author || ""} onChange={(v) => updateField("author", v)}
                   baseSize={24} fontSize={slide.customStyles?.author?.fontSize} onSizeChange={(s) => updateCustomSize("author", s)}
-                  className="font-black uppercase tracking-[0.2em] inline-block text-right" style={{ color: `#${tmpl.sub}` }} placeholder="Author name"
+                  className="font-black uppercase tracking-[0.2em] inline-block text-right" style={{ color: fmtCol(tmpl.sub) }} placeholder="Author name"
                 />
               </div>
             </div>
@@ -365,21 +517,31 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
               <EditableText 
                 value={slide.title} onChange={(v) => updateField("title", v)}
                 baseSize={48} fontSize={slide.customStyles?.title?.fontSize} onSizeChange={(s) => updateCustomSize("title", s)}
-                component="h2" className="font-black mb-8 border-b-2 pb-4 w-full" style={{ color: `#${tmpl.highlight}`, borderColor: `#${tmpl.accent}33` }} 
-              />
+                component="h2" className="font-black mb-8 border-b-2 pb-4 w-full flex justify-between items-center" 
+                style={{ color: tmpl.highlight.startsWith("#") ? tmpl.highlight : `#${tmpl.highlight}`, borderColor: (tmpl.accent.startsWith("#") ? tmpl.accent : `#${tmpl.accent}`) + "33" }} 
+              >
+                <div className="flex gap-2">
+                  <button onClick={addExtraText} title="Add own text/copy-paste" className="text-[10px] bg-slate-800 text-slate-400 px-3 py-1 rounded-full border border-slate-700 hover:text-white transition-all">+ Add Text</button>
+                  <button onClick={() => addItem("stats", { value: "0", label: "New Stat" })} className="text-[10px] bg-slate-800 text-slate-400 px-3 py-1 rounded-full border border-slate-700 hover:text-white transition-all">+</button>
+                  <button onClick={toggleImage} className="text-[10px] bg-slate-800 text-slate-400 px-3 py-1 rounded-full border border-slate-700 hover:text-white transition-all">
+                    {slide.image ? "🖼️ Remove Image" : "🖼️ Add Image"}
+                  </button>
+                </div>
+              </EditableText>
               <div className="grid grid-cols-2 gap-6 flex-grow content-start">
                 {(slide.stats || []).map((s, i) => (
-                  <div key={i} className="flex flex-col p-6 rounded-2xl border-2 bg-white/5" style={{ borderColor: `#${tmpl.accent}66` }}>
+                  <div key={i} className="flex flex-col p-6 rounded-2xl border-2 bg-white/5 relative group" style={{ borderColor: fmtCol(tmpl.accent) + "66" }}>
+                     <button onClick={() => removeItem("stats", i)} className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-red-500">✕</button>
                      <EditableText 
                         value={s.value} onChange={(v) => updateObjArrayField("stats", i, "value", v)}
                         baseSize={64} fontSize={slide.customStyles?.stats_val?.[i]?.fontSize} onSizeChange={(sz) => updateArraySize("stats_val", i, sz)}
-                        className="font-black w-full" style={{ color: `#${tmpl.accent}`, lineHeight: 1 }} 
+                        className="font-black w-full" style={{ color: fmtCol(tmpl.accent), lineHeight: 1 }} 
                      />
                      <div className="mt-2">
                        <EditableText 
                           value={s.label} onChange={(v) => updateObjArrayField("stats", i, "label", v)}
                           baseSize={20} fontSize={slide.customStyles?.stats_lbl?.[i]?.fontSize} onSizeChange={(sz) => updateArraySize("stats_lbl", i, sz)}
-                          className="font-bold opacity-80 uppercase tracking-widest w-full" style={{ color: `#${tmpl.body}` }} 
+                          className="font-bold opacity-80 uppercase tracking-widest w-full" style={{ color: fmtCol(tmpl.body) }} 
                        />
                      </div>
                   </div>
@@ -391,43 +553,47 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
               <EditableText 
                 value={slide.title} onChange={(v) => updateField("title", v)}
                 baseSize={48} fontSize={slide.customStyles?.title?.fontSize} onSizeChange={(s) => updateCustomSize("title", s)}
-                component="h2" className="font-black mb-8 border-b-2 pb-4 w-full" style={{ color: `#${tmpl.highlight}`, borderColor: `#${tmpl.accent}33` }} 
+                component="h2" className="font-black mb-8 border-b-2 pb-4 w-full" style={{ color: fmtCol(tmpl.highlight), borderColor: fmtCol(tmpl.accent) + "33" }} 
               />
               <div className="flex flex-1 gap-8">
                 <div className="flex-1 flex flex-col gap-4">
                   <EditableText 
-                    className="font-black uppercase tracking-widest w-full mb-2" style={{ color: `#${tmpl.accent}` }} 
+                    className="font-black uppercase tracking-widest w-full mb-2" style={{ color: tmpl.accent.startsWith("#") ? tmpl.accent : `#${tmpl.accent}` }} 
                     value={slide.leftColumn?.heading} onChange={(v) => updateColField("leftColumn", "heading", v)}
                     baseSize={24} fontSize={slide.customStyles?.leftHead?.fontSize} onSizeChange={(s) => updateCustomSize("leftHead", s)}
                   />
                   {(slide.leftColumn?.bullets || []).map((b, i) => (
-                    <div key={i} className="flex gap-4">
-                      <span className="text-2xl font-black mt-[-4px]" style={{ color: `#${tmpl.accent}` }}>•</span>
+                    <div key={i} className="flex gap-4 group relative">
+                      <button onClick={() => updateColField("leftColumn", "bullets", null, i)} className="absolute -left-8 top-1 opacity-0 group-hover:opacity-100 text-red-500 hover:scale-110 transition-all font-bold">✕</button>
+                      <span className="text-2xl font-black mt-[-4px]" style={{ color: tmpl.accent.startsWith("#") ? tmpl.accent : `#${tmpl.accent}` }}>•</span>
                       <EditableText 
-                        className="font-medium leading-relaxed w-full" style={{ color: `#${tmpl.body}` }} 
+                        className="font-medium leading-relaxed w-full" style={{ color: tmpl.body.startsWith("#") ? tmpl.body : `#${tmpl.body}` }} 
                         value={b} onChange={(v) => updateColField("leftColumn", "bullets", v, i)}
                         baseSize={24} fontSize={slide.customStyles?.leftBullets?.[i]?.fontSize} onSizeChange={(s) => updateArraySize("leftBullets", i, s)}
                       />
                     </div>
                   ))}
+                  <button onClick={() => updateColField("leftColumn", "bullets", [...(slide.leftColumn?.bullets || []), "New point"], null)} className="text-xs text-slate-500">+ Add Point</button>
                 </div>
-                <div className="w-0.5 h-full opacity-30" style={{ background: `#${tmpl.accent}` }} />
+                <div className="w-0.5 h-full opacity-30" style={{ background: tmpl.accent.startsWith("#") ? tmpl.accent : `#${tmpl.accent}` }} />
                 <div className="flex-1 flex flex-col gap-4">
                   <EditableText 
-                    className="font-black uppercase tracking-widest w-full mb-2" style={{ color: `#${tmpl.accent}` }} 
+                    className="font-black uppercase tracking-widest w-full mb-2" style={{ color: tmpl.accent.startsWith("#") ? tmpl.accent : `#${tmpl.accent}` }} 
                     value={slide.rightColumn?.heading} onChange={(v) => updateColField("rightColumn", "heading", v)}
                     baseSize={24} fontSize={slide.customStyles?.rightHead?.fontSize} onSizeChange={(s) => updateCustomSize("rightHead", s)}
                   />
                   {(slide.rightColumn?.bullets || []).map((b, i) => (
-                    <div key={i} className="flex gap-4">
-                      <span className="text-2xl font-black mt-[-4px]" style={{ color: `#${tmpl.accent}` }}>•</span>
+                    <div key={i} className="flex gap-4 group relative">
+                      <button onClick={() => updateColField("rightColumn", "bullets", null, i)} className="absolute -left-8 top-1 opacity-0 group-hover:opacity-100 text-red-500 hover:scale-110 transition-all font-bold">✕</button>
+                      <span className="text-2xl font-black mt-[-4px]" style={{ color: tmpl.accent.startsWith("#") ? tmpl.accent : `#${tmpl.accent}` }}>•</span>
                       <EditableText 
-                        className="font-medium leading-relaxed w-full" style={{ color: `#${tmpl.body}` }} 
+                        className="font-medium leading-relaxed w-full" style={{ color: tmpl.body.startsWith("#") ? tmpl.body : `#${tmpl.body}` }} 
                         value={b} onChange={(v) => updateColField("rightColumn", "bullets", v, i)}
                         baseSize={24} fontSize={slide.customStyles?.rightBullets?.[i]?.fontSize} onSizeChange={(s) => updateArraySize("rightBullets", i, s)}
                       />
                     </div>
                   ))}
+                  <button onClick={() => updateColField("rightColumn", "bullets", [...(slide.rightColumn?.bullets || []), "New point"], null)} className="text-xs text-slate-500">+ Add Point</button>
                 </div>
               </div>
             </div>
@@ -436,20 +602,22 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
               <EditableText 
                 value={slide.title} onChange={(v) => updateField("title", v)}
                 baseSize={48} fontSize={slide.customStyles?.title?.fontSize} onSizeChange={(s) => updateCustomSize("title", s)}
-                component="h2" className="font-black mb-8 border-b-2 pb-4 w-full" style={{ color: `#${tmpl.highlight}`, borderColor: `#${tmpl.accent}33` }} 
+                component="h2" className="font-black mb-8 border-b-2 pb-4 w-full" style={{ color: fmtCol(tmpl.highlight), borderColor: fmtCol(tmpl.accent) + "33" }} 
               />
+              <button onClick={() => addItem("timelineItems", { year: "2025", event: "New event" })} className="text-xs text-slate-500 mb-4">+ Add Event</button>
               <div className="flex flex-col gap-6 flex-grow justify-center relative pl-8">
-                <div className="absolute left-10 top-4 bottom-4 w-1 hidden sm:block opacity-30" style={{ background: `#${tmpl.accent}` }} />
+                <div className="absolute left-10 top-4 bottom-4 w-1 hidden sm:block opacity-30" style={{ background: fmtCol(tmpl.accent) }} />
                 {(slide.timelineItems || []).map((t, i) => (
-                  <div key={i} className="flex flex-col sm:flex-row sm:items-center gap-4 relative z-10 w-full pr-8">
-                    <div className="hidden sm:block w-5 h-5 rounded-full flex-shrink-0" style={{ background: `#${tmpl.accent}` }} />
+                  <div key={i} className="flex flex-col sm:flex-row sm:items-center gap-4 relative z-10 w-full pr-8 group">
+                    <button onClick={() => removeItem("timelineItems", i)} className="absolute -left-6 opacity-0 group-hover:opacity-100 text-red-500">✕</button>
+                    <div className="hidden sm:block w-5 h-5 rounded-full flex-shrink-0" style={{ background: fmtCol(tmpl.accent) }} />
                     <EditableText 
-                       className="font-black uppercase tracking-widest w-full sm:w-[120px] flex-shrink-0" style={{ color: `#${tmpl.accent}` }}
+                       className="font-black uppercase tracking-widest w-full sm:w-[120px] flex-shrink-0" style={{ color: fmtCol(tmpl.accent) }}
                        value={t.year} onChange={(v) => updateObjArrayField("timelineItems", i, "year", v)}
                        baseSize={28} fontSize={slide.customStyles?.tl_year?.[i]?.fontSize} onSizeChange={(s) => updateArraySize("tl_year", i, s)}
                     />
                     <EditableText 
-                       className="font-medium w-full" style={{ color: `#${tmpl.body}` }}
+                       className="font-medium w-full" style={{ color: fmtCol(tmpl.body) }}
                        value={t.event} onChange={(v) => updateObjArrayField("timelineItems", i, "event", v)}
                        baseSize={24} fontSize={slide.customStyles?.tl_evt?.[i]?.fontSize} onSizeChange={(s) => updateArraySize("tl_evt", i, s)}
                     />
@@ -462,23 +630,36 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
               <EditableText 
                 value={slide.title} onChange={(v) => updateField("title", v)}
                 baseSize={48} fontSize={slide.customStyles?.title?.fontSize} onSizeChange={(s) => updateCustomSize("title", s)}
-                component="h2" className="font-black mb-8 border-b-2 pb-4 w-full" style={{ color: `#${tmpl.highlight}`, borderColor: `#${tmpl.accent}33` }} 
-              />
+                component="h2" className="font-black mb-8 border-b-2 pb-4 w-full flex justify-between items-center" style={{ color: tmpl.highlight.startsWith("#") ? tmpl.highlight : `#${tmpl.highlight}`, borderColor: (tmpl.accent.startsWith("#") ? tmpl.accent : `#${tmpl.accent}`) + "33" }} 
+              >
+                <div className="flex gap-2">
+                  <button onClick={() => addItem("bullets", "New point")} className="text-[10px] bg-slate-800 text-slate-400 px-3 py-1 rounded-full border border-slate-700 hover:text-white transition-all">+</button>
+                  <button onClick={toggleImage} className="text-[10px] bg-slate-800 text-slate-400 px-3 py-1 rounded-full border border-slate-700 hover:text-white transition-all">
+                    {slide.image ? "🖼️ Remove Image" : "🖼️ Add Image"}
+                  </button>
+                </div>
+              </EditableText>
               <div className="flex gap-8 flex-1 w-full">
                 <div className="flex-1 flex flex-col gap-4 justify-center overflow-y-auto pr-2 custom-scrollbar">
                   {(slide.bullets && slide.bullets.length > 0) ? (
                     slide.bullets.map((b, i) => (
-                      <div key={i} className="flex gap-4 items-start group">
-                        <span className="text-2xl font-black mt-1 leading-none transition-transform group-hover:scale-125" style={{ color: `#${tmpl.accent}` }}>•</span>
+                      <div key={i} className="flex gap-4 items-start group relative">
+                        <button 
+                          onClick={() => removeItem("bullets", i)}
+                          className="absolute -left-8 top-1 opacity-0 group-hover:opacity-100 text-red-500 hover:scale-110 transition-all text-xs"
+                        >
+                          ✕
+                        </button>
+                        <span className="text-2xl font-black mt-1 leading-none transition-transform group-hover:scale-125" style={{ color: fmtCol(tmpl.accent) }}>•</span>
                         <EditableText 
                           value={b} onChange={(v) => updateArrayField("bullets", i, v)}
                           baseSize={24} fontSize={slide.customStyles?.bullets?.[i]?.fontSize} onSizeChange={(s) => updateArraySize("bullets", i, s)}
-                          className="font-medium leading-relaxed w-full" style={{ color: `#${tmpl.body}` }}
+                          className="font-medium leading-relaxed w-full" style={{ color: fmtCol(tmpl.body) }}
                         />
                       </div>
                     ))
                   ) : (
-                    <div className="opacity-40 italic text-2xl font-medium" style={{ color: `#${tmpl.body}` }}>Adding detailed content...</div>
+                    <div className="opacity-40 italic text-2xl font-medium" style={{ color: fmtCol(tmpl.body) }}>Adding detailed content...</div>
                   )}
                 </div>
                 {slide.image && (
@@ -504,8 +685,29 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
             </div>
           )}
 
-            <div className="absolute bottom-6 right-8 text-sm font-black opacity-30" style={{ color: `#${tmpl.text}` }}>{currentIndex + 1}</div>
-            {currentIndex === 0 && <div className="absolute bottom-6 left-8 text-sm font-black uppercase tracking-[0.2em] opacity-50" style={{ color: `#${tmpl.accent}` }}>VisionText AI</div>}
+              {/* Extra Custom Text Rendering Section (Full Control) */}
+              <div className="absolute bottom-16 left-8 right-8 flex flex-col gap-2 z-20 pointer-events-auto">
+                {(slide.extraText || []).map((txt, i) => (
+                  <div key={i} className="group/extra relative bg-slate-900/40 p-2 rounded-lg border border-white/5 backdrop-blur-sm">
+                    <button 
+                      onClick={() => removeExtraText(i)}
+                      className="absolute -right-2 -top-2 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center opacity-0 group-hover/extra:opacity-100 transition-all shadow-lg"
+                    >
+                      ✕
+                    </button>
+                    <EditableText 
+                      value={txt} 
+                      onChange={(v) => updateExtraText(i, v)}
+                      baseSize={20}
+                      className="font-medium"
+                      style={{ color: fmtCol(tmpl.body) }}
+                    />
+                  </div>
+                ))}
+              </div>
+
+            <div className="absolute bottom-6 right-8 text-sm font-black opacity-30" style={{ color: fmtCol(tmpl.body) }}>{currentIndex + 1}</div>
+            {currentIndex === 0 && <div className="absolute bottom-6 left-8 text-sm font-black uppercase tracking-[0.2em] opacity-50" style={{ color: fmtCol(tmpl.accent) }}>VisionText AI</div>}
           </motion.div>
         </AnimatePresence>
       </div>
@@ -518,22 +720,28 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Aippt() {
   // Step states: "input" → "generating" → "preview"
-  const [step, setStep] = useState("input");
+  const [step, setStep] = useState("input"); // input, selection, generating, preview
   const [showHistory, setShowHistory] = useState(false);
 
   // Form state
   const [prompt, setPrompt] = useState("");
   const [image, setImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
-  const [template, setTemplate] = useState("corporate");
+  const [referenceFile, setReferenceFile] = useState(null);
+  const [styleGuide, setStyleGuide] = useState(null);
+  const [template, setTemplate] = useState("modern");
   const [fontStyle, setFontStyle] = useState("modern");
   const [slideCount, setSlideCount] = useState(8);
+  const [customColors, setCustomColors] = useState(null); // { bg, accent, title, body, sub, highlight }
 
   // Result state
   const [slides, setSlides] = useState([]);
   const [activeSlide, setActiveSlide] = useState(0);
   const [showFullPreview, setShowFullPreview] = useState(false);
   const [lastSavedId, setLastSavedId] = useState(null);
+
+  // Progress state
+  const [genStatus, setGenStatus] = useState({ current: 0, total: 0, msg: "" });
 
   // Action states
   const [downloading, setDownloading] = useState(false);
@@ -592,30 +800,122 @@ export default function Aippt() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  // ── Generate PPT ────────────────────────────────────────────────────────────
+  // ── Generate PPT Sequential ───────────────────────────────────────────────
   const handleGenerate = async () => {
     if (!prompt.trim()) { setError("Please enter a topic or description."); return; }
     setError("");
     setStep("generating");
+    setSlides([]);
     pptBlobRef.current = null;
     setShareUrl(null);
 
     try {
-      const slideData = await generatePptData({ prompt, image, slideCount });
-      if (!slideData?.length) throw new Error("AI returned empty slides. Please try again.");
-      setSlides(slideData);
+      // 1. Analyze reference if provided
+      let currentStyleGuide = styleGuide;
+      if (referenceFile && !currentStyleGuide) {
+        setGenStatus({ current: 0, total: 1, msg: "Analyzing reference style..." });
+        const analysis = await analyzeReferencePpt(referenceFile);
+        currentStyleGuide = analysis.style;
+        setStyleGuide(currentStyleGuide);
+        
+        // If it was an import, maybe we want to use the slides? 
+        // For now, only style extraction is used for 'Generate'.
+      }
+
+      // 2. Generate Outline
+      setGenStatus({ current: 0, total: slideCount, msg: "Architecting presentation outline..." });
+      const outline = await generatePptOutline(prompt, slideCount, currentStyleGuide);
+      
+      if (!outline?.length) throw new Error("AI failed to create an outline. Please try again.");
+
+      // 3. Generate Slides one-by-one
+      const generatedSlides = [];
+      const totalSteps = outline.length;
+
+      for (let i = 0; i < totalSteps; i++) {
+        setGenStatus({ current: i + 1, total: totalSteps, msg: `Crafting slide ${i+1}: ${outline[i].title}...` });
+        
+        const slide = await generatePptSlide(prompt, outline, i, currentStyleGuide);
+        generatedSlides.push(slide);
+        setSlides([...generatedSlides]); // Update UI live
+
+        // 2-second delay as requested
+        if (i < totalSteps - 1) {
+          await new Promise(r => setTimeout(r, 2000));
+        }
+      }
+
+      setSlides(generatedSlides);
       setActiveSlide(0);
       setStep("preview");
-      setShowFullPreview(true); // Jump directly to full-screen mode
+      setShowFullPreview(true);
       
       savePptHistory({
         prompt,
         slideCount,
         template,
         fontStyle,
-        slides: slideData
+        slides: generatedSlides
       }).then(res => setLastSavedId(res._id)).catch(err => console.error("History save failed:", err));
       
+    } catch (err) {
+      setError(err.message);
+      setStep("input");
+    }
+  };
+
+  const handleInsertSlide = async (index) => {
+    setActiveSlide(index);
+    setStep("generating");
+    setGenStatus({ current: 1, total: 1, msg: `Inserting contextual slide at position ${index + 1}...` });
+    try {
+      const newSlide = await generateInsertedSlideData(prompt, slides, index, styleGuide);
+      const newSlides = [...slides];
+      newSlides.splice(index, 0, newSlide);
+      setSlides(newSlides);
+      pptBlobRef.current = null;
+      setStep("preview");
+    } catch (err) {
+      setError(err.message);
+      setStep("preview");
+    }
+  };
+
+  const handleDeleteSlide = (index) => {
+    if (slides.length <= 1) return;
+    const newSlides = slides.filter((_, i) => i !== index);
+    setSlides(newSlides);
+    if (activeSlide >= newSlides.length) setActiveSlide(newSlides.length - 1);
+    pptBlobRef.current = null;
+  };
+
+  const handleMoveSlide = (from, to) => {
+    if (to < 0 || to >= slides.length) return;
+    const newSlides = [...slides];
+    const [moved] = newSlides.splice(from, 1);
+    newSlides.splice(to, 0, moved);
+    setSlides(newSlides);
+    setActiveSlide(to);
+    pptBlobRef.current = null;
+  };
+
+  const handleImport = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setStep("generating");
+    setGenStatus({ current: 0, total: 1, msg: "Importing your presentation..." });
+    try {
+      const data = await analyzeReferencePpt(file);
+      if (data.slides && data.slides.length > 0) {
+        setSlides(data.slides);
+        setPrompt("Imported Presentation");
+        setActiveSlide(0);
+        setStep("preview");
+        setShowFullPreview(true);
+        setError("");
+      } else {
+        throw new Error("No slides found in this PPTX.");
+      }
     } catch (err) {
       setError(err.message);
       setStep("input");
@@ -731,36 +1031,60 @@ export default function Aippt() {
               </div>
             </div>
 
-            {/* Image Upload */}
-            <div className="space-y-3">
-              <label className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">🖼️ Reference Image (Optional)</label>
-              {imagePreview ? (
-                <div className="flex items-center gap-6 bg-slate-950 border border-slate-800 rounded-2xl p-4">
-                  <img src={imagePreview} alt="Reference" className="w-20 h-20 object-cover rounded-xl border border-slate-800" />
-                  <div className="flex flex-col gap-2">
-                    <span className="text-sm font-bold text-slate-400 truncate max-w-[200px]">{image?.name}</span>
-                    <button className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-red-500 hover:text-red-400 transition-colors" onClick={removeImage}>✕ Remove</button>
+            {/* Image & Reference Uploads */}
+            <div className="grid md:grid-cols-2 gap-10">
+              <div className="space-y-3 font-[Space_Grotesk]">
+                <label className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">🖼️ Context Image (Optional)</label>
+                {imagePreview ? (
+                  <div className="flex items-center gap-6 bg-slate-950 border border-slate-800 rounded-2xl p-4">
+                    <img src={imagePreview} alt="Reference" className="w-20 h-20 object-cover rounded-xl border border-slate-800" />
+                    <div className="flex flex-col gap-2">
+                      <span className="text-sm font-bold text-slate-400 truncate max-w-[200px]">{image?.name}</span>
+                      <button className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-red-500 hover:text-red-400 transition-colors" onClick={removeImage}>✕ Remove</button>
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <div
-                  className="group cursor-pointer border-2 border-dashed border-slate-800 hover:border-purple-500/50 bg-slate-950/50 hover:bg-purple-500/5 rounded-2xl p-10 text-center transition-all"
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={handleImageDrop}
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <div className="text-3xl mb-3 opacity-50 group-hover:scale-110 transition-transform group-hover:opacity-100">📤</div>
-                  <div className="text-sm font-bold text-slate-400 mb-1 group-hover:text-slate-300 transition-colors">Drag & drop image here or click to browse</div>
-                  <div className="text-[10px] font-black uppercase tracking-widest text-slate-600">JPG, PNG, WebP · Max 20MB</div>
-                </div>
-              )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleImageDrop}
-              />
+                ) : (
+                  <div
+                    className="group cursor-pointer border-2 border-dashed border-slate-800 hover:border-purple-500/50 bg-slate-950/50 hover:bg-purple-500/5 rounded-2xl p-8 text-center transition-all"
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={handleImageDrop}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <div className="text-3xl mb-3 opacity-50 group-hover:scale-110 transition-transform group-hover:opacity-100">📤</div>
+                    <div className="text-sm font-bold text-slate-400 mb-1 group-hover:text-slate-300 transition-colors">Context image</div>
+                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-600">JPG, PNG, WebP</div>
+                  </div>
+                )}
+                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageDrop} />
+              </div>
+
+              <div className="space-y-3 font-[Space_Grotesk]">
+                <label className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">📄 Reference PPTX (Optional)</label>
+                {referenceFile ? (
+                  <div className="flex items-center gap-6 bg-slate-950 border border-slate-800 rounded-2xl p-4">
+                    <div className="w-20 h-20 flex items-center justify-center bg-slate-900 rounded-xl border border-slate-800 text-3xl">📊</div>
+                    <div className="flex flex-col gap-2">
+                      <span className="text-sm font-bold text-slate-400 truncate max-w-[200px]">{referenceFile.name}</span>
+                      <button className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-red-500 hover:text-red-400 transition-colors" onClick={() => {setReferenceFile(null); setStyleGuide(null);}}>✕ Remove</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    className="group cursor-pointer border-2 border-dashed border-slate-800 hover:border-indigo-500/50 bg-slate-950/50 hover:bg-indigo-500/5 rounded-2xl p-8 text-center transition-all"
+                    onClick={() => {
+                      const input = document.createElement("input");
+                      input.type = "file";
+                      input.accept = ".pptx";
+                      input.onchange = (e) => setReferenceFile(e.target.files[0]);
+                      input.click();
+                    }}
+                  >
+                    <div className="text-3xl mb-3 opacity-50 group-hover:scale-110 transition-transform group-hover:opacity-100">📂</div>
+                    <div className="text-sm font-bold text-slate-400 mb-1 group-hover:text-slate-300 transition-colors">Style guide (.pptx)</div>
+                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-600">Extract theme & fonts</div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Settings Row */}
@@ -808,75 +1132,185 @@ export default function Aippt() {
                 </div>
 
                 <div className="space-y-3">
-                  <label className="text-xs font-black uppercase tracking-[0.2em] text-slate-500" htmlFor="slide-count">📑 Slide Count</label>
-                  <input
-                    id="slide-count"
-                    type="number"
-                    min="4"
-                    max="20"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 text-sm font-bold focus:ring-2 focus:ring-purple-500/50 transition-all outline-none"
-                    value={slideCount}
-                    onChange={(e) => {
-                      let val = parseInt(e.target.value, 10);
-                      if (isNaN(val)) val = 4;
-                      setSlideCount(val);
-                    }}
-                  />
+                  <label className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">📑 Slide Count</label>
+                  <div className="flex flex-wrap gap-2">
+                    {SLIDE_COUNTS.map(count => (
+                      <button
+                        key={count}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all ${
+                          slideCount === count 
+                            ? "bg-purple-600 border-purple-500 text-white" 
+                            : "bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700"
+                        }`}
+                        onClick={() => setSlideCount(count)}
+                      >
+                        {count === 0 ? "Auto" : count}
+                      </button>
+                    ))}
+                  </div>
                 </div>
+              </div>
+
+              <div className="space-y-4 pt-6 border-t border-slate-800">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">✨ Custom Brand Identity</label>
+                  <button 
+                    onClick={() => setCustomColors(customColors ? null : { bg: "0f172a", accent: "38bdf8", title: "f8fafc", body: "94a3b8", sub: "64748b", highlight: "0ea5e9" })}
+                    className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border transition-all ${customColors ? "bg-purple-600 border-purple-500 text-white" : "bg-slate-900 border-slate-700 text-slate-400"}`}
+                  >
+                    {customColors ? "Custom ON" : "Use Template"}
+                  </button>
+                </div>
+                
+                {customColors && (
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 animate-in slide-in-from-top-2 duration-300">
+                    {Object.keys(customColors).map(key => (
+                      <div key={key} className="space-y-2">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase">{key}</label>
+                        <div className="flex gap-2 items-center bg-slate-950 border border-slate-800 rounded-lg p-2">
+                          <input 
+                            type="color" 
+                            value={customColors[key].startsWith("#") ? customColors[key] : `#${customColors[key]}`} 
+                            onChange={(e) => setCustomColors({ ...customColors, [key]: e.target.value })}
+                            className="w-6 h-6 rounded cursor-pointer bg-transparent border-0"
+                          />
+                          <input 
+                            type="text" 
+                            value={customColors[key]} 
+                            onChange={(e) => setCustomColors({ ...customColors, [key]: e.target.value })}
+                            className="bg-transparent text-xs font-mono text-slate-300 w-full focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
             {error && <div className="p-4 bg-red-500/10 border border-red-500/30 text-red-500 text-sm font-bold rounded-xl flex items-center gap-2">⚠️ {error}</div>}
 
-            <button
-              className="w-full py-6 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xl rounded-2xl shadow-xl shadow-purple-500/20 hover:shadow-purple-500/40 hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50"
-              onClick={handleGenerate}
-              disabled={!prompt.trim()}
-            >
-              ✨ Generate Presentation with AI
-            </button>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <button
+                className="w-full py-5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-lg rounded-2xl shadow-xl shadow-purple-500/20 hover:shadow-purple-500/40 hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50"
+                onClick={() => setStep("selection")}
+                disabled={!prompt.trim()}
+              >
+                ✨ Pick Design & Generate
+              </button>
+              <button
+                className="w-full py-5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-black text-lg rounded-2xl border border-slate-700 transition-all active:scale-[0.99]"
+                onClick={() => {
+                   const input = document.createElement("input");
+                   input.type = "file";
+                   input.accept = ".pptx";
+                   input.onchange = handleImport;
+                   input.click();
+                }}
+              >
+                📥 Import Existing .pptx
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* ── STEP 2: Generating Loader ── */}
-      {step === "generating" && (
-        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-10 animate-in fade-in zoom-in-95 duration-700">
-           <div className="relative w-32 h-32">
-              <div className="absolute inset-0 border-4 border-purple-500/20 rounded-full" />
-              <div className="absolute inset-0 border-4 border-transparent border-t-purple-500 rounded-full animate-spin" />
-              <div className="absolute inset-4 border-4 border-transparent border-b-indigo-500 rounded-full animate-[spin_1.5s_linear_infinite_reverse]" />
-              <div className="absolute inset-0 flex items-center justify-center text-4xl animate-pulse">✨</div>
+      {/* ── STEP: Design Selection (Full Screen) ── */}
+      {step === "selection" && (
+        <div className="fixed inset-0 z-[120] bg-slate-950 flex flex-col font-[Outfit] animate-in fade-in zoom-in-95 duration-500">
+           <div className="flex items-center justify-between p-8 border-b border-slate-800 bg-slate-900/50 backdrop-blur-xl">
+              <div>
+                <h2 className="text-3xl font-black text-white">Choose Your <span className="text-purple-400">Atmosphere</span></h2>
+                <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mt-1">Select a premium template for your {slideCount} slides</p>
+              </div>
+              <button onClick={() => setStep("input")} className="w-12 h-12 rounded-full flex items-center justify-center bg-slate-800 text-white text-xl hover:bg-red-500 transition-all">✕</button>
            </div>
            
-           <div className="space-y-4">
-             <h2 className="text-3xl font-black text-white bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-indigo-400">
-               Crafting Your Masterpiece...
-             </h2>
-             <p className="text-slate-500 font-bold uppercase tracking-widest text-sm">
-               Generating {slideCount} Intelligent Slides
-             </p>
-           </div>
-
-           <div className="w-full max-w-md space-y-3 bg-slate-900/50 border border-slate-800 p-8 rounded-3xl">
-              {[
-                { label: "Analyzing requirements", done: true },
-                { label: "Researching content", done: step === "generating" },
-                { label: "Generating visual assets", done: false },
-                { label: "Polishing design", done: false },
-              ].map((s, i) => (
-                <div key={i} className="flex items-center gap-3">
-                   <div className={`w-2 h-2 rounded-full ${s.done ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-slate-700'}`} />
-                   <span className={`text-sm font-bold tracking-tight ${s.done ? 'text-emerald-400' : 'text-slate-600'}`}>
-                     {s.label}
-                   </span>
-                </div>
-              ))}
+           <div className="flex-1 overflow-y-auto p-10 custom-scrollbar">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+                {Object.entries(TEMPLATES).map(([key, tmpl]) => (
+                  <button
+                    key={key}
+                    onClick={() => { setTemplate(key); handleGenerate(); }}
+                    className="group relative flex flex-col rounded-[2rem] overflow-hidden border-2 border-slate-800 transition-all hover:scale-[1.03] hover:shadow-[0_0_50px_rgba(168,85,247,0.2)] bg-slate-900"
+                    style={{ borderColor: template === key ? `#${tmpl.accent}` : undefined }}
+                  >
+                    <div className="aspect-[16/10] w-full p-4 relative" style={{ background: `#${tmpl.bg}` }}>
+                        <div className="absolute top-0 left-0 w-full h-2" style={{ background: `#${tmpl.accent}` }} />
+                        <div className="flex flex-col gap-2 mt-4">
+                           <div className="w-2/3 h-4 rounded-full" style={{ background: `#${tmpl.title}44` }} />
+                           <div className="w-1/2 h-2 rounded-full" style={{ background: `#${tmpl.body}44` }} />
+                           <div className="w-1/3 h-2 rounded-full" style={{ background: `#${tmpl.body}44` }} />
+                        </div>
+                        <div className="absolute bottom-4 right-4 text-4xl opacity-20">{tmpl.emoji}</div>
+                    </div>
+                    <div className="p-6 flex items-center justify-between">
+                       <div className="text-left">
+                          <div className="text-lg font-black text-white">{tmpl.name}</div>
+                          <div className="flex gap-1 mt-2">
+                             {[tmpl.accent, tmpl.title, tmpl.bg].map(c => (
+                               <div key={c} className="w-4 h-4 rounded-full border border-white/10" style={{ background: `#${c}` }} />
+                             ))}
+                          </div>
+                       </div>
+                       <div className="w-10 h-10 rounded-xl bg-purple-500 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Rocket className="w-5 h-5 text-white" />
+                       </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
            </div>
         </div>
       )}
 
-      {/* ── STEP 3: Preview & Export ── */}
+      {/* ── STEP 2: Generating Loader (Sequential) ── */}
+      {step === "generating" && (
+        <div className="fixed inset-0 z-[120] bg-slate-950 flex flex-col items-center justify-center text-center p-8 space-y-12 animate-in fade-in duration-500 font-[Space_Grotesk]">
+           <div className="space-y-6">
+              <div className="relative w-48 h-48 mx-auto">
+                <svg className="w-full h-full transform -rotate-90">
+                  <circle cx="96" cy="96" r="88" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-slate-900" />
+                  <circle cx="96" cy="96" r="88" stroke="currentColor" strokeWidth="8" fill="transparent" 
+                    className="text-purple-500 transition-all duration-1000 ease-out"
+                    strokeDasharray={2 * Math.PI * 88}
+                    strokeDashoffset={2 * Math.PI * 88 * (1 - (genStatus.current / genStatus.total || 0))} 
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center flex-col">
+                   <div className="text-4xl font-black text-white">{Math.round((genStatus.current / genStatus.total) * 100) || 0}%</div>
+                   <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mt-1">{genStatus.current} / {genStatus.total}</div>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <h2 className="text-4xl font-black text-white">AI Studio <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-indigo-400">Crafting</span></h2>
+                <AnimatePresence mode="wait">
+                   <motion.p key={genStatus.msg} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="text-slate-400 font-bold h-6">
+                     {genStatus.msg}
+                   </motion.p>
+                </AnimatePresence>
+              </div>
+           </div>
+
+           <div className="w-full max-w-2xl">
+              {slides.length > 0 && (
+                <div className="flex gap-4 overflow-hidden py-4 justify-center">
+                  {slides.slice(-5).map((s, i) => (
+                    <div key={i} className="w-32 aspect-video flex-shrink-0 bg-slate-900 border border-purple-500/50 rounded-lg overflow-hidden animate-in slide-in-from-right-10 duration-500">
+                       <div className="h-1 w-full" style={{ background: `#${TEMPLATES[template].accent}` }} />
+                       <div className="p-2 text-[6px] font-bold text-slate-500 line-clamp-3">{s.title}</div>
+                    </div>
+                  ))}
+                  <div className="w-32 aspect-video flex-shrink-0 bg-slate-900/30 border border-slate-800 border-dashed rounded-lg flex items-center justify-center">
+                    <div className="w-4 h-4 border-2 border-slate-700 border-t-purple-500 rounded-full animate-spin" />
+                  </div>
+                </div>
+              )}
+           </div>
+        </div>
+      )}
+
       {/* ── STEP 3: Preview & Export ── */}
       {step === "preview" && slides.length > 0 && (
         <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -908,18 +1342,48 @@ export default function Aippt() {
             </div>
           </div>
 
-          {/* Slide Strip */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-6 bg-slate-900/50 border border-slate-800 rounded-3xl overflow-x-auto">
-            {slides.map((slide, i) => (
-              <SlidePreview
-                key={i}
-                slide={slide}
-                template={template}
-                index={i}
-                isActive={activeSlide === i}
-                onClick={() => { setActiveSlide(i); setShowFullPreview(true); }}
-              />
-            ))}
+          {/* Slide Grid with inter-slide buttons */}
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 p-6 bg-slate-900/50 border border-slate-800 rounded-3xl">
+              {slides.map((slide, i) => (
+                <div key={i} className="group relative flex flex-col gap-3">
+                  <SlidePreview
+                    slide={{ ...slide, onDelete: () => handleDeleteSlide(i) }}
+                    template={template}
+                    index={i}
+                    isActive={activeSlide === i}
+                    onClick={() => { setActiveSlide(i); setShowFullPreview(true); }}
+                  />
+                  
+                  {/* Reorder controls directly on grid */}
+                  <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => handleMoveSlide(i, i - 1)} className="p-1 px-2 bg-slate-800 rounded-md text-[10px] text-slate-400 hover:text-white" disabled={i === 0}>←</button>
+                    <button onClick={() => handleMoveSlide(i, i + 1)} className="p-1 px-2 bg-slate-800 rounded-md text-[10px] text-slate-400 hover:text-white" disabled={i === slides.length - 1}>→</button>
+                  </div>
+
+                  {/* Add button between items */}
+                  {i < slides.length - 1 && (
+                    <div className="absolute -right-[1.5rem] top-1/2 -translate-y-1/2 z-30 opacity-0 group-hover:opacity-100 transition-opacity">
+                       <button 
+                        onClick={() => handleInsertSlide(i + 1)}
+                        className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center hover:scale-110 shadow-lg border-2 border-slate-900"
+                        title="Add slide here"
+                       >
+                        +
+                       </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+              
+              {/* Add button at the very end */}
+              <button 
+                onClick={() => handleInsertSlide(slides.length)}
+                className="w-full aspect-video border-2 border-dashed border-slate-800 rounded-xl flex items-center justify-center text-slate-500 hover:text-indigo-400 hover:border-indigo-500/50 transition-all font-black text-sm group"
+              >
+                <span className="group-hover:scale-110 transition-transform">+ Add Final Slide</span>
+              </button>
+            </div>
           </div>
 
           {/* Selected slide detail */}

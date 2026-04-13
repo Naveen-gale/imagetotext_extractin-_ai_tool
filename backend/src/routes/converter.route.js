@@ -14,6 +14,10 @@ import {
     improveSlideText,
     editPPT,
     editSingleSlide,
+    generateOutline,
+    generateSlide,
+    analyzeReference,
+    generateInsertedSlide,
 } from "../controllers/converter.controller.js";
 
 const router = Router();
@@ -40,10 +44,18 @@ const pptImageUpload = multer({
 const pptFileUpload = multer({
     storage: multer.diskStorage({
         destination: (req, file, cb) => cb(null, uploadsDir),
-        filename: (req, file, cb) => cb(null, `share-ppt-\${Date.now()}.pptx`),
+        filename: (req, file, cb) => cb(null, `share-ppt-${Date.now()}.pptx`),
     }),
     limits: { fileSize: 50 * 1024 * 1024 },
 }).single("file");
+
+const pptReferenceUpload = multer({
+    storage: multer.diskStorage({
+        destination: (req, file, cb) => cb(null, uploadsDir),
+        filename: (req, file, cb) => cb(null, `ref-ppt-${Date.now()}.pptx`),
+    }),
+    limits: { fileSize: 50 * 1024 * 1024 },
+}).single("reference");
 
 // Image upload & text extraction
 router.post("/convert", uploadImages, convertImages);
@@ -56,6 +68,10 @@ router.post("/ai/extract-info", extractInfo);
 
 // AI PPT Generation
 router.post("/ai/generate-ppt", pptImageUpload, generatePPT);
+router.post("/ai/generate-outline", generateOutline);
+router.post("/ai/generate-slide", generateSlide);
+router.post("/ai/generate-inserted-slide", generateInsertedSlide);
+router.post("/ai/analyze-reference", pptReferenceUpload, analyzeReference);
 router.post("/ai/edit-ppt", editPPT);
 router.post("/ai/edit-slide", editSingleSlide);
 
