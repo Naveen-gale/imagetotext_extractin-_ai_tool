@@ -155,9 +155,7 @@ function SlidePreview({ slide, template, index, isActive, onClick }) {
         {renderContent()}
       </div>
       <div className="absolute bottom-2 right-3 text-[8px] font-black opacity-50" style={{ color: fmtCol(tmpl.body) }}>{index + 1}</div>
-      {isFirstSlide && (
-        <div className="absolute bottom-2 left-3 text-[8px] font-black uppercase tracking-widest opacity-80" style={{ color: fmtCol(tmpl.accent) }}>VisionText AI</div>
-      )}
+
     </div>
   );
 }
@@ -337,7 +335,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
   return createPortal(
     <div className="fixed inset-0 z-[110] flex flex-col bg-slate-950 animate-in fade-in duration-300" role="dialog" aria-modal="true" ref={containerRef}>
       <div className="w-full h-full flex flex-col overflow-hidden relative">
-        <div className="absolute top-0 left-0 w-full flex items-center justify-between p-4 sm:p-6 z-50 pointer-events-none">
+        <div className={`absolute top-0 left-0 w-full flex items-center justify-between p-4 sm:p-6 z-50 pointer-events-none transition-opacity duration-300 ${isFullscreen ? "opacity-0 hover:opacity-100" : "opacity-100"}`}>
           <div className="flex items-center gap-4 pointer-events-auto">
             <span className="px-3 py-1.5 bg-slate-900/80 backdrop-blur-md text-slate-300 text-xs font-black uppercase tracking-widest rounded-lg border border-slate-700/50 shadow-lg">{currentIndex + 1} / {slides.length}</span>
           </div>
@@ -382,7 +380,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
         </div>
 
         {/* Floating AI Edit Command Bar */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-50 w-full max-w-3xl px-4 pointer-events-auto">
+        <div className={`absolute bottom-8 left-1/2 -translate-x-1/2 z-50 w-full max-w-3xl px-4 pointer-events-auto transition-opacity duration-300 ${isFullscreen ? "opacity-0 hover:opacity-100" : "opacity-100"}`}>
            <form onSubmit={handleEditSubmit} className="flex flex-col sm:flex-row w-full gap-2 items-center relative p-2 bg-slate-900/80 backdrop-blur-xl border border-slate-700/50 rounded-full shadow-2xl">
                <div className="absolute left-6 top-1/2 -translate-y-1/2 text-purple-400 text-xl pointer-events-none">✨</div>
                <input
@@ -409,14 +407,14 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
           style={{ fontFamily: FONT_STYLES[fontStyle]?.body || "Calibri, sans-serif" }}
         >
           <button 
-            className="absolute left-4 sm:left-8 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-slate-800/50 hover:bg-slate-700 text-white flex items-center justify-center z-20 backdrop-blur-md transition-all shadow-xl border border-slate-700 disabled:opacity-30" 
+            className={`absolute left-4 sm:left-8 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-slate-800/50 hover:bg-slate-700 text-white flex items-center justify-center z-20 backdrop-blur-md transition-all shadow-xl border border-slate-700 disabled:opacity-30 ${isFullscreen ? "opacity-0 hover:opacity-100" : "opacity-100"}`}
             onClick={onPrev} disabled={currentIndex === 0}
           >
             ←
           </button>
           
           <button 
-            className="absolute right-4 sm:right-8 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-slate-800/50 hover:bg-slate-700 text-white flex items-center justify-center z-20 backdrop-blur-md transition-all shadow-xl border border-slate-700 disabled:opacity-30" 
+            className={`absolute right-4 sm:right-8 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-slate-800/50 hover:bg-slate-700 text-white flex items-center justify-center z-20 backdrop-blur-md transition-all shadow-xl border border-slate-700 disabled:opacity-30 ${isFullscreen ? "opacity-0 hover:opacity-100" : "opacity-100"}`}
             onClick={onNext} disabled={currentIndex === slides.length - 1}
           >
             →
@@ -707,7 +705,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
               </div>
 
             <div className="absolute bottom-6 right-8 text-sm font-black opacity-30" style={{ color: fmtCol(tmpl.body) }}>{currentIndex + 1}</div>
-            {currentIndex === 0 && <div className="absolute bottom-6 left-8 text-sm font-black uppercase tracking-[0.2em] opacity-50" style={{ color: fmtCol(tmpl.accent) }}>VisionText AI</div>}
+
           </motion.div>
         </AnimatePresence>
       </div>
@@ -908,7 +906,10 @@ export default function Aippt() {
       const data = await analyzeReferencePpt(file);
       if (data.slides && data.slides.length > 0) {
         setSlides(data.slides);
-        setPrompt("Imported Presentation");
+        
+        // Preserve the original file name or title
+        setPrompt(prev => prev || file.name.replace(".pptx", ""));
+
         setActiveSlide(0);
         setStep("preview");
         setShowFullPreview(true);
@@ -934,7 +935,7 @@ export default function Aippt() {
     try {
       let blob = pptBlobRef.current;
       if (!blob) {
-        blob = await generatePptx(slides, template, fontStyle);
+        blob = await generatePptx(slides, customColors || template, fontStyle);
         pptBlobRef.current = blob;
       }
       const url = URL.createObjectURL(blob);
@@ -1133,7 +1134,7 @@ export default function Aippt() {
 
                 <div className="space-y-3">
                   <label className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">📑 Slide Count</label>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2 items-center">
                     {SLIDE_COUNTS.map(count => (
                       <button
                         key={count}
@@ -1147,6 +1148,17 @@ export default function Aippt() {
                         {count === 0 ? "Auto" : count}
                       </button>
                     ))}
+                    <div className="flex items-center gap-2 ml-2">
+                       <span className="text-xs font-bold text-slate-500">Custom:</span>
+                       <input 
+                         type="number" 
+                         min="1" max="50"
+                         className="w-16 bg-slate-950 border border-slate-800 rounded-xl px-2 py-2 text-slate-200 text-xs font-bold focus:ring-2 focus:ring-purple-500/50 outline-none text-center"
+                         value={SLIDE_COUNTS.includes(slideCount) ? "" : slideCount}
+                         onChange={(e) => setSlideCount(parseInt(e.target.value) || 0)}
+                         placeholder="#"
+                       />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1350,6 +1362,7 @@ export default function Aippt() {
                   <SlidePreview
                     slide={{ ...slide, onDelete: () => handleDeleteSlide(i) }}
                     template={template}
+                    customColors={customColors}
                     index={i}
                     isActive={activeSlide === i}
                     onClick={() => { setActiveSlide(i); setShowFullPreview(true); }}
@@ -1458,6 +1471,7 @@ export default function Aippt() {
           slides={slides}
           currentIndex={activeSlide}
           template={template}
+          customColors={customColors}
           fontStyle={fontStyle}
           onUpdateSlide={(idx, updatedSlide) => {
             const newArray = [...slides];

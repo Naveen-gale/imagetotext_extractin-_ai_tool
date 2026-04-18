@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { improveTextApi } from "../utils/api";
+import { motion, useDragControls } from "framer-motion";
 
 export default function EditableText({
   value,
@@ -19,6 +20,7 @@ export default function EditableText({
   const [showToolbar, setShowToolbar] = useState(false);
   
   const contentRef = useRef(null);
+  const dragControls = useDragControls();
 
   const displaySize = fontSize || baseSize || 30;
 
@@ -66,11 +68,24 @@ export default function EditableText({
   const Component = component;
 
   return (
-    <div
+    <motion.div
+      drag
+      dragMomentum={false}
+      dragListener={false}
+      dragControls={dragControls}
       className={`relative w-full group ${isFocused ? "z-50" : ""} ${isHovered ? "" : ""}`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
+      {(isHovered && !isFocused) && (
+        <div 
+          className="absolute -left-6 top-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing p-1 text-slate-500 opacity-50 hover:opacity-100 z-50 transition-opacity"
+          onPointerDown={(e) => dragControls.start(e)}
+          title="Drag to move"
+        >
+          ⋮⋮
+        </div>
+      )}
       {(showToolbar || (isHovered && !isFocused)) && (
         <div 
           className="absolute -top-10 left-0 bg-slate-800 border border-slate-700 rounded-lg shadow-xl flex items-center p-1 gap-1 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200" 
@@ -119,6 +134,6 @@ export default function EditableText({
       >
         {value}
       </Component>
-    </div>
+    </motion.div>
   );
 }

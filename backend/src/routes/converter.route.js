@@ -18,6 +18,10 @@ import {
     generateSlide,
     analyzeReference,
     generateInsertedSlide,
+    answerQuestion,
+    simplify,
+    knowledgeGraph,
+    getSuggestions,
 } from "../controllers/converter.controller.js";
 
 const router = Router();
@@ -65,6 +69,10 @@ router.post("/ai/summarize", summarize);
 router.post("/ai/translate", translate);
 router.post("/ai/fix-grammar", grammar);
 router.post("/ai/extract-info", extractInfo);
+router.post("/ai/answer-question", answerQuestion);
+router.post("/ai/simplify", simplify);
+router.post("/ai/knowledge-graph", knowledgeGraph);
+router.post("/ai/suggestions", getSuggestions);
 
 // AI PPT Generation
 router.post("/ai/generate-ppt", pptImageUpload, generatePPT);

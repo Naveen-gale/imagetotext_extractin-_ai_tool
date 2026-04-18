@@ -56,6 +56,36 @@ def fallback_extract_info(text):
         
     return result
 
+def fallback_ask_question(text, question):
+    # Basic keyword search fallback
+    q_words = re.findall(r'\w+', question.lower())
+    sentences = re.split(r'(?<=[.!?]) +', text)
+    
+    best_sentences = []
+    for s in sentences:
+        if any(w in s.lower() for w in q_words if len(w) > 3):
+            best_sentences.append(s)
+            
+    if best_sentences:
+        return " ".join(best_sentences[:2]) + "\n\n(Note: This is a keyword-matching Python fallback because the Groq API failed.)"
+    
+    return "I couldn't find a direct answer in the text using basic matching. (Groq API failed and fallback is limited.)"
+
+def fallback_simplify(text):
+    return "This is a simplified version (Python Fallback). (Groq API failed). Original text summary:\n" + text[:200] + "..."
+
+def fallback_knowledge_graph(text):
+    return """```mermaid
+mindmap
+  root((Text Diagram))
+    Fallback
+      Idea 1
+      Idea 2
+```"""
+
+def fallback_suggestions(text):
+    return "- **Key Idea 1**: This is a fallback suggestion.\n- **Definition**: The Groq API failed to generate real-time suggestions."
+
 if __name__ == "__main__":
     try:
         input_data = sys.stdin.read()
@@ -77,6 +107,14 @@ if __name__ == "__main__":
             result = fallback_grammar(data.get("text"))
         elif action == "extractInfo":
             result = fallback_extract_info(data.get("text"))
+        elif action == "askQuestion":
+            result = fallback_ask_question(data.get("text"), data.get("question"))
+        elif action == "simplifyConcept":
+            result = fallback_simplify(data.get("text"))
+        elif action == "generateKnowledgeGraph":
+            result = fallback_knowledge_graph(data.get("text"))
+        elif action == "suggestionEngine":
+            result = fallback_suggestions(data.get("text"))
         else:
             result = f"Unknown action: {action}"
             

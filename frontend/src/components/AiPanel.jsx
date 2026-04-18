@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Sparkles, Globe, PenTool, Search, Bot, Download } from "lucide-react";
+import { Sparkles, Globe, PenTool, Search, Bot, Download, MessageSquare, Lightbulb, Zap, Network, ShieldCheck } from "lucide-react";
 import FormatModal from "./modals/FormatModal";
-import { aiSummarize, aiTranslate, aiFixGrammar, aiExtractInfo } from "../utils/api";
+import { aiSummarize, aiTranslate, aiFixGrammar, aiExtractInfo, aiAnswerQuestion, aiSimplify, aiKnowledgeGraph, aiSuggestions } from "../utils/api";
+import Mermaid from "./Mermaid";
 import { buildCombinedText } from "../utils/download";
 
 const LANGUAGES = [
@@ -19,6 +20,7 @@ export default function AiPanel({ results, addToast }) {
   const [aiLabel, setAiLabel] = useState("");
   const [loading, setLoading] = useState(null);
   const [showDownload, setShowDownload] = useState(false);
+  const [question, setQuestion] = useState("");
 
   // Get the text to analyze
   const getText = () => {
@@ -63,10 +65,10 @@ export default function AiPanel({ results, addToast }) {
     },
     {
       id: "grammar",
-      icon: <PenTool className="w-6 h-6" />,
-      name: "Fix Grammar",
-      desc: "Correct errors & improve clarity",
-      fn: () => run("Fix Grammar", aiFixGrammar),
+      icon: <ShieldCheck className="w-6 h-6" />,
+      name: "Smart Error Correction",
+      desc: "Fix spelling, grammar & clarity",
+      fn: () => run("Smart Error Correction", aiFixGrammar),
     },
     {
       id: "extract",
@@ -74,6 +76,40 @@ export default function AiPanel({ results, addToast }) {
       name: "Extract Info",
       desc: "Names, dates, numbers, facts",
       fn: () => run("Extract Info", aiExtractInfo),
+    },
+    {
+      id: "qa",
+      icon: <MessageSquare className="w-6 h-6" />,
+      name: "Ask Questions",
+      desc: "Ask anything about the text",
+      fn: () => {
+        if (!question.trim()) {
+           addToast("Please enter a question first.", "error");
+           return;
+        }
+        run("Question Answering", (text) => aiAnswerQuestion(text, question));
+      },
+    },
+    {
+      id: "simplify",
+      icon: <Lightbulb className="w-6 h-6" />,
+      name: "Concept Simplifier",
+      desc: "Easy explanations for students",
+      fn: () => run("Concept Simplifier", aiSimplify),
+    },
+    {
+      id: "suggestions",
+      icon: <Zap className="w-6 h-6" />,
+      name: "Real-Time Suggestions",
+      desc: "Meanings & explanations of key ideas",
+      fn: () => run("Real-Time Suggestions", aiSuggestions),
+    },
+    {
+      id: "knowledge",
+      icon: <Network className="w-6 h-6" />,
+      name: "Knowledge Graph",
+      desc: "Visual mind map of connected ideas",
+      fn: () => run("Knowledge Graph", aiKnowledgeGraph),
     },
   ];
 
@@ -153,6 +189,32 @@ export default function AiPanel({ results, addToast }) {
         ))}
       </div>
 
+      {/* Question Answering Input */}
+      <div className="mt-8 p-6 bg-slate-950/50 border border-slate-800 rounded-3xl animate-in fade-in slide-in-from-bottom-2">
+         <div className="flex flex-col gap-4">
+            <div className="flex items-center gap-3">
+              <MessageSquare className="w-5 h-5 text-indigo-400" />
+              <span className="text-xs font-black uppercase tracking-widest text-slate-500">Question Answering</span>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3">
+               <input 
+                 type="text"
+                 placeholder="e.g., 'What are the main findings in this document?'"
+                 className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 text-sm font-bold focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all"
+                 value={question}
+                 onChange={(e) => setQuestion(e.target.value)}
+                 onKeyDown={(e) => e.key === 'Enter' && tools.find(t => t.id === 'qa')?.fn()}
+               />
+               <button 
+                 className={`px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-xl transition-all shadow-lg shadow-indigo-500/20 active:scale-95 flex items-center justify-center gap-2 ${loading === 'Question Answering' ? 'opacity-50 pointer-events-none' : ''}`}
+                 onClick={() => tools.find(t => t.id === 'qa')?.fn()}
+               >
+                 {loading === "Question Answering" ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : "Ask AI"}
+               </button>
+            </div>
+         </div>
+      </div>
+
       {/* AI result display */}
       {aiResult && (
         <div className="mt-8 bg-slate-950 border border-slate-800 rounded-3xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500 shadow-xl">
@@ -178,7 +240,11 @@ export default function AiPanel({ results, addToast }) {
             </button>
           </div>
           <div className="p-8 font-sans text-slate-300 leading-relaxed whitespace-pre-wrap select-text selection:bg-indigo-500/30">
-             {aiResult}
+             {aiLabel === "Knowledge Graph" ? (
+               <Mermaid chart={aiResult} />
+             ) : (
+               <div dangerouslySetInnerHTML={{ __html: aiResult.replace(/\n\n/g, '<br/><br/>').replace(/\n/g, '<br/>') }} />
+             )}
           </div>
         </div>
       )}

@@ -251,3 +251,43 @@ export async function editSingleSlideData(prompt, slide) {
   return data.slide;
 }
 
+export async function aiAnswerQuestion(text, question) {
+  const res = await fetch(`${BASE}/ai/answer-question`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text, question }),
+  });
+  const data = await handleResponse(res, "Question Answering");
+  return data.answer;
+}
+
+export async function aiSimplify(text) {
+  const res = await fetch(`${BASE}/ai/simplify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+  const data = await handleResponse(res, "Concept Simplifier");
+  return data.result;
+}
+
+export async function aiKnowledgeGraph(text) {
+  const res = await fetch(`${BASE}/ai/knowledge-graph`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+  const data = await handleResponse(res, "Knowledge Graph");
+  return data.result;
+}
+
+export async function aiSuggestions(text) {
+  const res = await fetch(`${BASE}/ai/suggestions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+  const data = await handleResponse(res, "Suggestions Engine");
+  return data.result;
+}
+

@@ -1,4 +1,4 @@
-import { extractTextFromImage, summarizeText, translateText, fixGrammar, extractKeyInfo, generatePPTContent, generatePPTOutline, generateSingleSlideContent } from "../services/groq.service.js";
+import { extractTextFromImage, summarizeText, translateText, fixGrammar, extractKeyInfo, generatePPTContent, generatePPTOutline, generateSingleSlideContent, askQuestion, simplifyConcept, generateKnowledgeGraph, suggestionEngine } from "../services/groq.service.js";
 import { uploadToImageKit } from "../services/imagekit.service.js";
 import { extractDocumentText, formatDocumentTextWithAI } from "../services/document.service.js";
 import { analyzePPTX } from "../services/pptAnalysis.service.js";
@@ -152,6 +152,64 @@ export const extractInfo = async (req, res) => {
     try {
         const info = await extractKeyInfo(text);
         return res.status(200).json({ success: true, info });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+/**
+ * POST /api/v1/ai/answer-question
+ */
+export const answerQuestion = async (req, res) => {
+    const { text, question } = req.body;
+    if (!text || !question) {
+        return res.status(400).json({ success: false, error: "Both text and question are required." });
+    }
+    try {
+        const answer = await askQuestion(text, question);
+        return res.status(200).json({ success: true, answer });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+/**
+ * POST /api/v1/ai/simplify
+ */
+export const simplify = async (req, res) => {
+    const { text } = req.body;
+    if (!text || text.trim().length === 0) return res.status(400).json({ success: false, error: "No text provided." });
+    try {
+        const result = await simplifyConcept(text);
+        return res.status(200).json({ success: true, result });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+/**
+ * POST /api/v1/ai/knowledge-graph
+ */
+export const knowledgeGraph = async (req, res) => {
+    const { text } = req.body;
+    if (!text || text.trim().length === 0) return res.status(400).json({ success: false, error: "No text provided." });
+    try {
+        const result = await generateKnowledgeGraph(text);
+        return res.status(200).json({ success: true, result });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+/**
+ * POST /api/v1/ai/suggestions
+ */
+export const getSuggestions = async (req, res) => {
+    const { text } = req.body;
+    if (!text || text.trim().length === 0) return res.status(400).json({ success: false, error: "No text provided." });
+    try {
+        const result = await suggestionEngine(text);
+        return res.status(200).json({ success: true, result });
     } catch (error) {
         return res.status(500).json({ success: false, error: error.message });
     }

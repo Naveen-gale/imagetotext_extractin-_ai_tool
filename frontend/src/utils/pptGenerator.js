@@ -122,6 +122,46 @@ export const TEMPLATES = {
     sub: "f87171",
     highlight: "fca5a5",
   },
+  premium_dark: {
+    name: "Luxury Obsidian",
+    emoji: "🖤",
+    bg: "0a0a0a",
+    accent: "fbbf24",
+    title: "ffffff",
+    body: "d4d4d8",
+    sub: "9ca3af",
+    highlight: "fcd34d",
+  },
+  neon_glow: {
+    name: "Neon Nights",
+    emoji: "🟣",
+    bg: "0f0c29",
+    accent: "00f2fe",
+    title: "ffffff",
+    body: "e0e7ff",
+    sub: "a5b4fc",
+    highlight: "4facfe",
+  },
+  glassmorphism: {
+    name: "Glassmorphism Blur",
+    emoji: "🧊",
+    bg: "cbd5e1",
+    accent: "3b82f6",
+    title: "1e293b",
+    body: "334155",
+    sub: "475569",
+    highlight: "2563eb",
+  },
+  earthy: {
+    name: "Earthy Neutrals",
+    emoji: "🍂",
+    bg: "fafaf9",
+    accent: "a8a29e",
+    title: "44403c",
+    body: "57534e",
+    sub: "78716c",
+    highlight: "a8a29e",
+  },
 };
 
 // ─── Font Styles ─────────────────────────────────────────────────────────────
@@ -131,6 +171,9 @@ export const FONT_STYLES = {
   tech: { heading: "Courier New", body: "Courier New" },
   elegant: { heading: "Garamond", body: "Garamond" },
   bold: { heading: "Arial Black", body: "Arial" },
+  premium: { heading: "Montserrat", body: "Open Sans" },
+  poppins: { heading: "Poppins", body: "Inter" },
+  serif_lux: { heading: "Playfair Display", body: "Lora" },
 };
 
 // ─── Main generator ───────────────────────────────────────────────────────────
@@ -148,17 +191,7 @@ export async function generatePptx(slides, templateKey = "corporate", fontStyleK
     const sl = prs.addSlide();
     sl.background = { color: slide.bgColor || tmpl.bg };
 
-    // Branding - ONLY ON FIRST SLIDE
-    if (slides.indexOf(slide) === 0) {
-      sl.addText("VisionText AI", {
-        x: 0.8, y: 7.0, w: 12, h: 0.4,
-        fontSize: 12,
-        color: tmpl.sub,
-        fontFace: fonts.body,
-        align: "right",
-        italic: true,
-      });
-    }
+
 
     // Add Multiple Slide Images if present
     const allImages = slide.images || (slide.image ? [slide.image] : []);

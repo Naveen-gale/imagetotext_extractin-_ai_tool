@@ -66,7 +66,7 @@ export const extractTextFromImage = async (imagePath) => {
                 {
                     role: "user",
                     content: [
-                        { type: "text", text: "Extract ALL text from this image exactly as it appears. Return ONLY the extracted text, nothing else." },
+                        { type: "text", text: "You are equipped with 'Context-Aware Understanding' and 'Handwriting Style Learning'. Extract ALL text from this image exactly as it appears. You must use context to accurately interpret unclear characters or sloppy handwriting, adapting to the handwriting style intelligently to fix spelling. Return ONLY the extracted text, nothing else." },
                         { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Image}` } },
                     ],
                 },
@@ -139,8 +139,8 @@ export const fixGrammar = async (text) => {
         const response = await getGroq().chat.completions.create({
             model: "llama-3.1-8b-instant",
             messages: [
-                { role: "system", content: "Fix grammar, spelling, and improve clarity. Return ONLY the corrected text." },
-                { role: "user", content: `Fix the grammar:\n\n${text}` },
+                { role: "system", content: "You are a Smart Error Correction engine. Automatically fix spelling mistakes, correct grammar, and rewrite unclear sentences to make the output clean, professional, and easy to read. Return ONLY the corrected text." },
+                { role: "user", content: `Clean and correct this text:\n\n${text}` },
             ],
             max_tokens: 4096,
             temperature: 0.2,
@@ -172,6 +172,95 @@ export const extractKeyInfo = async (text) => {
     } catch (error) {
         console.warn(`Groq Key Info Failed (${error.message}). Running Python fallback...`);
         return await runPythonFallback("extractInfo", { text });
+    }
+};
+
+/**
+ * Answer a question based on provided text using Groq
+ */
+export const askQuestion = async (text, question) => {
+    try {
+        const response = await getGroq().chat.completions.create({
+            model: "llama-3.1-8b-instant",
+            messages: [
+                { role: "system", content: "You are a helpful assistant. Use the provided text to answer the user's question. Be accurate and concise. If the answer is not in the text, politely say so." },
+                { role: "user", content: `Context:\n${text}\n\nQuestion: ${question}` },
+            ],
+            max_tokens: 1024,
+            temperature: 0.4,
+        });
+
+        return response.choices[0]?.message?.content || "I couldn't find an answer to that question.";
+    } catch (error) {
+        console.warn(`Groq Ask Question Failed (${error.message}). Running Python fallback...`);
+        return await runPythonFallback("askQuestion", { text, question });
+    }
+};
+
+/**
+ * Simplify concept using Groq
+ */
+export const simplifyConcept = async (text) => {
+    try {
+        const response = await getGroq().chat.completions.create({
+            model: "llama-3.1-8b-instant",
+            messages: [
+                { role: "system", content: "You are an expert educator. Simplify the following text or concept into easy-to-understand language suitable for a student. Use analogies if helpful. Do NOT use markdown code blocks around your entire answer." },
+                { role: "user", content: `Simplify this:\n\n${text}` },
+            ],
+            max_tokens: 1024,
+            temperature: 0.4,
+        });
+        return response.choices[0]?.message?.content || "Could not simplify.";
+    } catch (error) {
+        console.warn(`Groq Simplify Failed (${error.message}). Running Python fallback...`);
+        return await runPythonFallback("simplifyConcept", { text });
+    }
+};
+
+/**
+ * Generate Knowledge Graph (Mermaid.js) using Groq
+ */
+export const generateKnowledgeGraph = async (text) => {
+    try {
+        const response = await getGroq().chat.completions.create({
+            model: "llama-3.3-70b-versatile",
+            messages: [
+                { role: "system", content: "You are a knowledge architect. Create a valid Mermaid.js mindmap diagram connecting the main ideas, entities, and concepts found in the provided text. Keep node names concise. Only output valid Mermaid syntax inside a ```mermaid ... ``` code block. Do NOT include any intro or outro text." },
+                { role: "user", content: `Generate a Mermaid mindmap for this:\n\n${text}` },
+            ],
+            max_tokens: 1500,
+            temperature: 0.2,
+        });
+
+        const raw = response.choices[0]?.message?.content || "";
+        const match = raw.match(/```mermaid\n([\s\S]*?)```/);
+        return match ? match[1].trim() : raw.trim();
+    } catch (error) {
+        console.warn(`Groq Knowledge Graph Failed (${error.message}). Running Python fallback...`);
+        return await runPythonFallback("generateKnowledgeGraph", { text });
+    }
+};
+
+/**
+ * Real-Time Suggestion Engine using Groq
+ */
+export const suggestionEngine = async (text) => {
+    try {
+        const response = await getGroq().chat.completions.create({
+            model: "llama-3.1-8b-instant",
+            messages: [
+                { role: "system", content: "You are a real-time study assistant. Identify 3-5 complex terms, key ideas, or interesting facts from the text and provide clear meanings, explanations, and related info for them. Format clearly using markdown bullet points or headers." },
+                { role: "user", content: `Provide suggestions/explanations for:\n\n${text}` },
+            ],
+            max_tokens: 1024,
+            temperature: 0.4,
+        });
+
+        return response.choices[0]?.message?.content || "No suggestions available.";
+    } catch (error) {
+        console.warn(`Groq Suggestion Engine Failed (${error.message}). Running Python fallback...`);
+        return await runPythonFallback("suggestionEngine", { text });
     }
 };
 
