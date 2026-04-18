@@ -22,6 +22,7 @@ import {
     simplify,
     knowledgeGraph,
     getSuggestions,
+    saveLearningData
 } from "../controllers/converter.controller.js";
 
 const router = Router();
@@ -70,6 +71,7 @@ router.post("/ai/translate", translate);
 router.post("/ai/fix-grammar", grammar);
 router.post("/ai/extract-info", extractInfo);
 router.post("/ai/answer-question", answerQuestion);
+router.post("/ai/learn", saveLearningData);
 router.post("/ai/simplify", simplify);
 router.post("/ai/knowledge-graph", knowledgeGraph);
 router.post("/ai/suggestions", getSuggestions);

@@ -3,6 +3,7 @@ import fs from "fs/promises";
 import { spawn } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
+import AiLearning from "../models/AiLearning.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,6 +15,36 @@ export const getGroq = () => {
     if (!_groq) _groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
     return _groq;
 };
+
+// ─── AI TRAINING DATA (ONLINE PPT REFERENCES) ───────────────────────────────
+const ONLINE_PPT_REFERENCES = `
+### PRE-TRAINED ONLINE PPT REFERENCES
+You have been trained on the structure of the world's most successful online presentations. When creating layouts, refer to these master frameworks:
+
+REFERENCE 1: "The Airbnb Pitch Deck" (Startup / High-Impact Style)
+- Slide 1: Title (Minimalist)
+- Slide 2: Problem (3 stark, painful facts)
+- Slide 3: Solution (Simple one-liner with 3 direct benefits)
+- Slide 4: Market Validation (Massive numbers, clear stats)
+- Slide 5: Market Size (Concentric circles or visual stats)
+- Slide 6: Product (Images with short descriptive bullets)
+- Slide 7: Business Model (How we make money)
+- Slide 8: Adoption Strategy (Timeline/Steps)
+
+REFERENCE 2: "The McKinsey Consulting Report" (Data-Driven / Corporate Style)
+- Every slide uses an "Action Title" (a full sentence summarizing the absolute main point).
+- Extensive use of 'two-column' layouts (Data on left, Insights on right).
+- 'Stats' types favored over generic bullet points.
+- Highly professional, objective tone. No fluff.
+
+REFERENCE 3: "The TED Talk Keynote" (Storytelling / Narrative Style)
+- Zero bullet points.
+- Extremely high reliance on 'quote' and 'image' slides.
+- Slide 1: The Hook (A surprising statistical fact or bold claim).
+- Slide 2: The Status Quo (Image slide representing the current world).
+- Slide 3..N: The Journey (Timeline format or series of full-screen quotes).
+- Final Slide: The Call to Action (Powerful thought).
+`;
 
 /**
  * Helper to run the Python fallback script when Groq fails
@@ -265,26 +296,64 @@ export const suggestionEngine = async (text) => {
 };
 
 /**
+ * Helper to fetch and format learned corrections for a session
+ */
+async function getLearnedContext(sessionId) {
+    if (!sessionId || sessionId === "anonymous") return "";
+    try {
+        const corrections = await AiLearning.find({ sessionId })
+            .sort({ createdAt: -1 })
+            .limit(5);
+
+        if (corrections.length === 0) return "";
+
+        let context = "\n\n### LEARNED USER PREFERENCES (Based on your previous mistakes):\n";
+        context += "The user has previously corrected your output. DO NOT repeat these mistakes. Evolve based on these interactions:\n";
+        corrections.forEach(c => {
+            context += `- When you wrote: "${c.originalValue}", the user corrected it to: "${c.correctedValue}"\n`;
+        });
+        context += "Adapt your tone, vocabulary, and style to match these corrections.\n";
+        return context;
+    } catch (err) {
+        console.warn("[Learning] Could not fetch corrections:", err.message);
+        return "";
+    }
+}
+
+/**
  * Generate PPT slide content using Groq AI.
  * Returns a JSON array of slide objects.
  * @param {string} prompt - User's presentation topic/request
  * @param {string|null} base64Image - Optional base64 image for visual context
  * @param {string} mimeType - MIME type of the image
  * @param {number} slideCount - Requested number of slides
+ * @param {string} sessionId - For personalized learning
  */
-export const generatePPTContent = async (prompt, base64Image = null, mimeType = "image/jpeg", slideCount = 8) => {
-    const systemPrompt = `You are an expert presentation designer. Create a highly engaging, structured ${slideCount}-slide professional presentation based on the user's input.
-IMPORTANT INSTRUCTIONS:
-- DO NOT just copy the exact text provided by the user. You must THINK, expand on the core idea, and generate comprehensive, well-structured professional PowerPoint slide content.
-- YOUR GOAL IS TO WOW THE USER WITH AN EXPERT-LEVEL SLIDE DECK. DO NOT BE BASIC. DO NOT BE REPETITIVE.
-- IMPORTANT: Text MUST fit on the slide. If you have many bullet points, keep each bullet point concise (maximum 15 words each).
-- VARIETY IS MANDATORY: Use a diverse mix of slide types. Do NOT reuse the same slide type more than twice in the entire presentation. Ensure you use 'two-column', 'timeline', 'stats', 'quote', and 'content' types to keep it dynamic.
-- Each slide should be visually balanced. If using 'image' type, ensure 'bullets' are informative but concise.
-- EACH SLIDE MUST HAVE CONTENT: Aim for 4-5 high-quality, punchy bullet points.
-- Slide 1 MUST be type "title".
-- Slide ${slideCount} MUST be a "Thank You" slide.
-- For all slides except 'title' and 'quote', the 'title' field should be very impactful.
-- ACCURACY: Content must be highly professional and well-structured.
+export const generatePPTContent = async (prompt, base64Image = null, mimeType = "image/jpeg", slideCount = 8, sessionId = "anonymous") => {
+    const learningContext = await getLearnedContext(sessionId);
+    const systemPrompt = `You are an expert presentation designer.
+CRITICAL MANDATE: Your SLIDE STRUCTURE and LAYOUT CHOICES must be 100% dictated by the user's prompt. 
+- If the user asks for a "storytelling format", "no bullet points", "data-driven", "every slide different layout", etc., YOU MUST ABSOLUTELY COMPLY. 
+- BREAK any default rules to achieve the user's exact requested structure.
+- To avoid bullet points: Pass a single long sentence into the "bullets" array (e.g. ["Once upon a time..."]) to create a paragraph, or use "quote" slides.
+- For data-driven: Use "stats" and "timeline" extensively.
+
+${ONLINE_PPT_REFERENCES}
+
+DEFAULT RULES (ONLY use these if the user gives a generic topic like "PPT about dogs" and NO structural constraints):
+1. Use a diverse mix of slide types ('content', 'image', 'two-column', 'timeline', 'stats', 'quote').
+2. Slide 1 is "title", the last is "content" or "image".
+3. Keep bullet points concise (max 15-20 words).
+
+RAW DATA RULES:
+If the user provides a large block of extracted text or raw data:
+- CONVERT THEIR EXACT CONTENT into slides reliably.
+- Do NOT excessively summarize. Break their content logically across the slides using the most appropriate slide types.
+
+JSON FIELD ENFORCEMENT:
+- You are restricted to these exact types: "title" | "content" | "image" | "two-column" | "quote" | "timeline" | "stats".
+- Pick the types that BEST MATCH the user's structure requests. Do not default to "content" if "quote" or "image" fits their creative request better.
+${learningContext}
 
 Respond ONLY with a valid JSON object containing a "slides" array. Do NOT include markdown, code blocks, or extra text.
 Each element is a slide object:
@@ -534,7 +603,7 @@ export const improveTextEngine = async (text, action) => {
  * Edit existing PPT slide content based on a prompt
  * Expects the current slides JSON array and a prompt describing requested changes.
  */
-export const editPPTContent = async (prompt, currentSlides) => {
+export const editPPTContent = async (prompt, currentSlides, sessionId = "anonymous") => {
     const systemPrompt = `You are an expert presentation designer and editor. 
 You are given the JSON array of the CURRENT SLIDES of a presentation, and a USER REQUEST detailing how they want to edit or improve the presentation.
 IMPORTANT INSTRUCTIONS:
@@ -545,7 +614,8 @@ IMPORTANT INSTRUCTIONS:
 - Ensure every slide has 4-5 bullet points of high-quality information.
 - Use diverse slide types ('stats', 'timeline', 'two-column', etc.) to make the edit feel professional.
 - Respond ONLY with a valid JSON object containing a "slides" array with exactly the updated slide objects. Do NOT include extra metadata.
-- Ensure the result is still a high-quality professional presentation with excellent structural writing.`;
+- Ensure the result is still a high-quality professional presentation with excellent structural writing.
+${await getLearnedContext(sessionId)}`;
 
     const userMessage = `USER REQUEST: "${prompt}"
 
@@ -596,7 +666,7 @@ Return the newly modified slides array as raw JSON.`;
  * Edit a SINGLE specific slide based on a prompt.
  * Expects a single slide object.
  */
-export const editSingleSlideContent = async (prompt, slide) => {
+export const editSingleSlideContent = async (prompt, slide, sessionId = "anonymous") => {
     const systemPrompt = `You are an expert presentation designer. 
 You are given ONE CURRENT SLIDE and a USER REQUEST to refine or improve it.
 IMPORTANT INSTRUCTIONS:
@@ -606,7 +676,8 @@ IMPORTANT INSTRUCTIONS:
 - Preserve any 'customStyles' exactly.
 - Return ONLY the updated slide object as valid JSON.
 - DO NOT return an array. Return a single object.
-- If the prompt implies a visual change, update 'imageKeyword' appropriately.`;
+- If the prompt implies a visual change, update 'imageKeyword' appropriately.
+${await getLearnedContext(sessionId)}`;
 
     const userMessage = `USER REQUEST: "${prompt}"
 

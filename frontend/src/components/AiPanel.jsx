@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Sparkles, Globe, PenTool, Search, Bot, Download, MessageSquare, Lightbulb, Zap, Network, ShieldCheck } from "lucide-react";
+import { Sparkles, Globe, PenTool, Search, Bot, Download, MessageSquare, Lightbulb, Zap, Network, ShieldCheck, Presentation } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import FormatModal from "./modals/FormatModal";
 import { aiSummarize, aiTranslate, aiFixGrammar, aiExtractInfo, aiAnswerQuestion, aiSimplify, aiKnowledgeGraph, aiSuggestions } from "../utils/api";
 import Mermaid from "./Mermaid";
@@ -13,6 +14,7 @@ const LANGUAGES = [
 ];
 
 export default function AiPanel({ results, addToast }) {
+  const navigate = useNavigate();
   // Source: 0 = "all combined", positive index = specific page
   const [sourceIdx, setSourceIdx] = useState(0); // 0 = combined
   const [targetLang, setTargetLang] = useState("Spanish");
@@ -110,6 +112,20 @@ export default function AiPanel({ results, addToast }) {
       name: "Knowledge Graph",
       desc: "Visual mind map of connected ideas",
       fn: () => run("Knowledge Graph", aiKnowledgeGraph),
+    },
+    {
+      id: "ppt",
+      icon: <Presentation className="w-6 h-6" />,
+      name: "Create Presentation",
+      desc: "Turn extracted text into a PPT deck",
+      fn: () => {
+        const text = getText();
+        if (!text || (text.includes("[NO TEXT FOUND]") && text.length < 40)) {
+          addToast("No usable text to build a presentation from.", "error");
+          return;
+        }
+        navigate('/ai-ppt', { state: { initialPrompt: text } });
+      },
     },
   ];
 

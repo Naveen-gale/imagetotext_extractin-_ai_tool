@@ -1,15 +1,25 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { History as HistoryIcon, Rocket, Sparkles, Presentation } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { generatePptData, uploadPptFile, savePptHistory, generatePptOutline, generatePptSlide, analyzeReferencePpt, generateInsertedSlideData } from "../utils/api";
+import { generatePptData, uploadPptFile, savePptHistory, generatePptOutline, generatePptSlide, analyzeReferencePpt, generateInsertedSlideData, saveAiCorrection } from "../utils/api";
 import { generatePptx, TEMPLATES, FONT_STYLES } from "../utils/pptGenerator";
 import EditableText from "../components/EditableText";
 import HistoryModal from "../components/modals/HistoryModal";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const SLIDE_COUNTS = [0, 4, 6, 8, 10, 12, 15]; // 0 is Auto
+
+const LEARNING_BADGE = (
+  <div className="flex items-center gap-2 px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 rounded-full">
+    <span className="relative flex h-2 w-2">
+      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+      <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+    </span>
+    <span className="text-[10px] font-black uppercase tracking-widest text-indigo-400">Auto-Learning AI Active</span>
+  </div>
+);
 
 // ─── Slide Preview component ─────────────────────────────────────────────────
 function SlidePreview({ slide, template, index, isActive, onClick }) {
@@ -206,6 +216,15 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
       }
       
       onUpdateSlide(currentIndex, updatedSlide);
+      
+      // Learn from the prompt/result if possible
+      saveAiCorrection({
+        originalValue: slide.title + " " + (slide.bullets?.join(" ") || ""),
+        correctedValue: updatedSlide.title + " " + (updatedSlide.bullets?.join(" ") || ""),
+        type: "style",
+        slideTopic: updatedSlide.title
+      });
+      
       setEditPrompt("");
     } catch (err) {
       setEditError(err.message);
@@ -238,6 +257,15 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
   if (!slide) return null;
 
   const updateField = (field, newText) => {
+    const originalValue = slide[field];
+    if (originalValue && newText && originalValue !== newText) {
+      saveAiCorrection({
+        originalValue,
+        correctedValue: newText,
+        type: field,
+        slideTopic: slide.title
+      });
+    }
     onUpdateSlide(currentIndex, { ...slide, [field]: newText });
   };
   const updateCustomSize = (field, size) => {
@@ -249,6 +277,15 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
 
   const updateArrayField = (field, arrIndex, newText) => {
     const arr = [...(slide[field] || [])];
+    const originalValue = arr[arrIndex];
+    if (originalValue && newText && originalValue !== newText) {
+      saveAiCorrection({
+        originalValue,
+        correctedValue: newText,
+        type: field,
+        slideTopic: slide.title
+      });
+    }
     arr[arrIndex] = newText;
     onUpdateSlide(currentIndex, { ...slide, [field]: arr });
   };
@@ -328,6 +365,15 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
 
   const updateExtraText = (i, val) => {
     const arr = [...(slide.extraText || [])];
+    const originalValue = arr[i];
+    if (originalValue && val && originalValue !== val) {
+      saveAiCorrection({
+        originalValue,
+        correctedValue: val,
+        type: "extraText",
+        slideTopic: slide.title
+      });
+    }
     arr[i] = val;
     onUpdateSlide(currentIndex, { ...slide, extraText: arr });
   };
@@ -749,9 +795,20 @@ export default function Aippt() {
 
   const fileInputRef = useRef(null);
   const pptBlobRef = useRef(null);
+  const location = useLocation();
+  const navigate = useNavigate();
 
   // Persistence: Load
   useEffect(() => {
+    if (location.state?.initialPrompt) {
+      setPrompt(location.state.initialPrompt);
+      setStep("input");
+      setSlides([]);
+      localStorage.removeItem("ai_ppt_state");
+      navigate(location.pathname, { replace: true, state: {} });
+      return;
+    }
+
     const saved = localStorage.getItem("ai_ppt_state");
     if (saved) {
       try {
@@ -1005,6 +1062,17 @@ export default function Aippt() {
       {step === "input" && (
         <div className="space-y-12 animate-in fade-in slide-in-from-top-4 duration-700">
           <div className="text-center space-y-4">
+              <div className="flex items-center justify-center gap-3 mb-8">
+                <h2 className="text-3xl sm:text-4xl font-black text-white leading-tight">Create Presentation</h2>
+                {LEARNING_BADGE}
+              </div>
+              
+              <div className="bg-slate-900/50 border border-indigo-500/20 rounded-xl p-3 mb-6 flex items-center justify-center gap-3">
+                <span className="text-lg">🔄</span>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                  System evolves with user interaction
+                </p>
+              </div>
             <h1 className="text-4xl md:text-6xl font-black text-white leading-tight tracking-tight">
               Create <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-indigo-400">Stunning Presentations</span><br />with AI
             </h1>
@@ -1260,8 +1328,8 @@ export default function Aippt() {
                        <div className="text-left">
                           <div className="text-lg font-black text-white">{tmpl.name}</div>
                           <div className="flex gap-1 mt-2">
-                             {[tmpl.accent, tmpl.title, tmpl.bg].map(c => (
-                               <div key={c} className="w-4 h-4 rounded-full border border-white/10" style={{ background: `#${c}` }} />
+                             {[tmpl.accent, tmpl.title, tmpl.bg].map((c, idx) => (
+                               <div key={idx} className="w-4 h-4 rounded-full border border-white/10" style={{ background: `#${c}` }} />
                              ))}
                           </div>
                        </div>

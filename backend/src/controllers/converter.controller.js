@@ -2,6 +2,7 @@ import { extractTextFromImage, summarizeText, translateText, fixGrammar, extract
 import { uploadToImageKit } from "../services/imagekit.service.js";
 import { extractDocumentText, formatDocumentTextWithAI } from "../services/document.service.js";
 import { analyzePPTX } from "../services/pptAnalysis.service.js";
+import AiLearning from "../models/AiLearning.js";
 import fs from "fs/promises";
 
 /**
@@ -243,7 +244,8 @@ export const generatePPT = async (req, res) => {
     }
 
     try {
-        const slides = await generatePPTContent(prompt, base64Image, mimeType, slideCount);
+        const sessionId = req.headers["x-session-id"] || "anonymous";
+        const slides = await generatePPTContent(prompt, base64Image, mimeType, slideCount, sessionId);
         return res.status(200).json({ success: true, slides });
     } catch (error) {
         return res.status(500).json({ success: false, error: error.message });
@@ -290,7 +292,23 @@ export const analyzeReference = async (req, res) => {
 
     try {
         const data = await analyzePPTX(req.file.path);
-        return res.status(200).json({ success: true, data });
+        
+        let finalSlides = data.slides;
+        // Upgrade the raw extracted slides into a well-formatted AI presentation
+        if (data.slides && data.slides.length > 0) {
+            try {
+                const { editPPTContent } = await import("../services/groq.service.js");
+                const prompt = "I have extracted raw text from a PowerPoint file. Rebuild these slides into a beautiful, highly-structured presentation array. DO NOT change the core information, but DO fix the formatting, choose the most appropriate slide types (e.g. use 'two-column', 'quote', 'timeline' instead of just 'content' if it fits the data), and ensure it reads professionally.";
+                const upgradedSlides = await editPPTContent(prompt, data.slides, "anonymous");
+                if (upgradedSlides && upgradedSlides.length > 0) {
+                    finalSlides = upgradedSlides;
+                }
+            } catch (aiErr) {
+                console.warn("[PPT Import] AI formatting failed, falling back to raw extraction:", aiErr.message);
+            }
+        }
+
+        return res.status(200).json({ success: true, data: { style: data.style, slides: finalSlides } });
     } catch (error) {
         return res.status(500).json({ success: false, error: error.message });
     }
@@ -361,8 +379,9 @@ export const editPPT = async (req, res) => {
     }
 
     try {
+        const sessionId = req.headers["x-session-id"] || "anonymous";
         const { editPPTContent } = await import("../services/groq.service.js");
-        const slides = await editPPTContent(prompt, currentSlides);
+        const slides = await editPPTContent(prompt, currentSlides, sessionId);
         return res.status(200).json({ success: true, slides });
     } catch (error) {
         return res.status(500).json({ success: false, error: error.message });
@@ -380,9 +399,42 @@ export const editSingleSlide = async (req, res) => {
     }
 
     try {
+        const sessionId = req.headers["x-session-id"] || "anonymous";
         const { editSingleSlideContent } = await import("../services/groq.service.js");
-        const updatedSlide = await editSingleSlideContent(prompt, slide);
+        const updatedSlide = await editSingleSlideContent(prompt, slide, sessionId);
         return res.status(200).json({ success: true, slide: updatedSlide });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+/**
+ * POST /api/v1/ai/learn
+ * Body: { sessionId, originalValue, correctedValue, type, slideTopic }
+ */
+export const saveLearningData = async (req, res) => {
+    const { originalValue, correctedValue, type, slideTopic } = req.body;
+    const sessionId = req.headers["x-session-id"] || req.body.sessionId || "anonymous";
+    if (!originalValue || !correctedValue) {
+        return res.status(400).json({ success: false, error: "originalValue and correctedValue are required." });
+    }
+
+    try {
+        // Only save if significant change
+        if (originalValue.trim() === correctedValue.trim()) {
+            return res.status(200).json({ success: true, message: "No change detected, skipping." });
+        }
+
+        const learning = new AiLearning({
+            sessionId: sessionId || "anonymous",
+            originalValue,
+            correctedValue,
+            type: type || "general",
+            slideTopic
+        });
+
+        await learning.save();
+        console.log(`[Learning] Saved correction: "${originalValue}" -> "${correctedValue}"`);
+        return res.status(200).json({ success: true });
     } catch (error) {
         return res.status(500).json({ success: false, error: error.message });
     }

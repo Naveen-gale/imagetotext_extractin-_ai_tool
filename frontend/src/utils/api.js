@@ -103,7 +103,11 @@ export async function generatePptData({ prompt, image, slideCount = 8 }) {
   fd.append("prompt", prompt);
   fd.append("slideCount", String(slideCount));
   if (image) fd.append("image", image);
-  const res = await fetch(`${BASE}/ai/generate-ppt`, { method: "POST", body: fd });
+  const res = await fetch(`${BASE}/ai/generate-ppt`, { 
+    method: "POST", 
+    headers: { "x-session-id": getSessionId() },
+    body: fd 
+  });
   const data = await handleResponse(res, "PPT Generation");
   return data.slides;
 }
@@ -152,7 +156,7 @@ export async function generateInsertedSlideData(topic, currentSlides, insertInde
 export async function editPptData(prompt, currentSlides) {
   const res = await fetch(`${BASE}/ai/edit-ppt`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getHeaders(),
     body: JSON.stringify({ prompt, currentSlides }),
   });
   const data = await handleResponse(res, "PPT Edit");
@@ -244,7 +248,7 @@ export async function clearAllExtractHistory() {
 export async function editSingleSlideData(prompt, slide) {
   const res = await fetch(`${BASE}/ai/edit-slide`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getHeaders(),
     body: JSON.stringify({ prompt, slide }),
   });
   const data = await handleResponse(res, "Slide Refinement");
@@ -289,5 +293,22 @@ export async function aiSuggestions(text) {
   });
   const data = await handleResponse(res, "Suggestions Engine");
   return data.result;
+}
+
+/**
+ * NEW: Save user correction for Auto-Learning AI
+ */
+export async function saveAiCorrection({ originalValue, correctedValue, type, slideTopic }) {
+  try {
+    const res = await fetch(`${BASE}/ai/learn`, {
+      method: "POST",
+      headers: getHeaders(),
+      body: JSON.stringify({ originalValue, correctedValue, type, slideTopic }),
+    });
+    return await handleResponse(res, "Correction Learning");
+  } catch (err) {
+    console.warn("Learning auto-save failed:", err.message);
+    return null;
+  }
 }
 
