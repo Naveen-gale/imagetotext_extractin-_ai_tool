@@ -24,27 +24,30 @@ export default function EditableText({
 
   const displaySize = fontSize || baseSize || 30;
 
-  // Sync value if external changes happen
+  // 1. Initialize the DOM value once on mount
   useEffect(() => {
-    if (contentRef.current && contentRef.current.innerText !== value && !isFocused) {
+    if (contentRef.current) {
       contentRef.current.innerText = value || "";
+    }
+  }, []); // Only once on mount
+
+  // 2. Sync value ONLY if changes happen externally (e.g. AI updates or user switched slides)
+  // and ONLY if the user is not actively focusing the element.
+  useEffect(() => {
+    if (contentRef.current && !isFocused) {
+      if (contentRef.current.innerText !== value) {
+        contentRef.current.innerText = value || "";
+      }
     }
   }, [value, isFocused]);
 
   const handleBlur = () => {
     setIsFocused(false);
-    // Slight delay to allow toolbar clicks
-    setTimeout(() => {
-      setShowToolbar(false);
-    }, 200);
+    setTimeout(() => { setShowToolbar(false); }, 200);
     if (contentRef.current) {
+      // 3. Critically save the content to the parent state on blur
       onChange(contentRef.current.innerText);
     }
-  };
-
-  const handleFocus = () => {
-    setIsFocused(true);
-    setShowToolbar(true);
   };
 
   const handleAIAction = async (action) => {
@@ -120,8 +123,13 @@ export default function EditableText({
             ? "bg-slate-800/50 border border-dashed border-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.1)]" 
             : "border border-dashed border-transparent hover:border-slate-800"
         }`}
-        onFocus={handleFocus}
+        onFocus={() => setIsFocused(true)}
         onBlur={handleBlur}
+        onInput={() => {
+          if (contentRef.current) {
+            onChange(contentRef.current.innerText);
+          }
+        }}
         onClick={(e) => e.stopPropagation()}
         style={{
           ...style,
@@ -130,10 +138,9 @@ export default function EditableText({
           minHeight: "1em",
           display: isBullet ? "list-item" : "block",
         }}
+        spellCheck="false"
         data-placeholder={placeholder}
-      >
-        {value}
-      </Component>
+      />
     </motion.div>
   );
 }

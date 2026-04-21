@@ -312,7 +312,7 @@ async function getLearnedContext(sessionId) {
     try {
         const corrections = await AiLearning.find({ sessionId })
             .sort({ createdAt: -1 })
-            .limit(5);
+            .limit(10);
 
         if (corrections.length === 0) return "";
 
@@ -445,7 +445,8 @@ Each element is a slide object:
 /**
  * PHASE 1: Generate an outline for the presentation
  */
-export const generatePPTOutline = async (topic, slideCount = 8, styleGuide = null) => {
+export const generatePPTOutline = async (topic, slideCount = 8, styleGuide = null, sessionId = "anonymous") => {
+    const learningContext = await getLearnedContext(sessionId);
     const isAuto = slideCount === 0;
     const styleContext = styleGuide ? `Adhere to this design style guide extracted from a reference: ${JSON.stringify(styleGuide)}` : "";
     
@@ -456,6 +457,7 @@ export const generatePPTOutline = async (topic, slideCount = 8, styleGuide = nul
     - ${styleContext}
     - IMPORTANT: If styleGuide is provided, use it ONLY for colors and fonts. ABSOLUTELY DO NOT use its topics or words. Follow the Topic below strictly.
     - Slide types: "title", "content", "image", "two-column", "quote", "timeline", "stats".
+    ${learningContext}
     - Respond strictly with JSON: { "outline": [ { "type": "...", "title": "...", "description": "..." }, ... ] }`;
 
     const response = await callAiWithFallback({
@@ -481,7 +483,8 @@ export const generatePPTOutline = async (topic, slideCount = 8, styleGuide = nul
 /**
  * Generate a new slide that fits contextually into an existing deck
  */
-export const generateNewInsertedSlide = async (topic, currentSlides, insertIndex, styleGuide = null) => {
+export const generateNewInsertedSlide = async (topic, currentSlides, insertIndex, styleGuide = null, sessionId = "anonymous") => {
+    const learningContext = await getLearnedContext(sessionId);
     const prevSlide = insertIndex > 0 ? currentSlides[insertIndex - 1] : null;
     const nextSlide = insertIndex < currentSlides.length ? currentSlides[insertIndex] : null;
 
@@ -496,6 +499,7 @@ export const generateNewInsertedSlide = async (topic, currentSlides, insertIndex
     - ${styleContext}
     - IMPORTANT: Use styleGuide ONLY for visual theming. DO NOT use its content.
     - Choose fitting type: "content", "image", "two-column", "quote", "timeline", "stats".
+    ${learningContext}
     - Respond strictly with JSON for ONE slide object.`;
 
     const response = await callAiWithFallback({
@@ -520,7 +524,8 @@ export const generateNewInsertedSlide = async (topic, currentSlides, insertIndex
 /**
  * PHASE 2: Generate content for a single slide based on the outline
  */
-export const generateSingleSlideContent = async (topic, outline, slideIndex, styleGuide = null) => {
+export const generateSingleSlideContent = async (topic, outline, slideIndex, styleGuide = null, sessionId = "anonymous") => {
+    const learningContext = await getLearnedContext(sessionId);
     const slideMeta = outline[slideIndex];
     if (!slideMeta) throw new Error("Invalid slide index.");
 
@@ -541,6 +546,7 @@ export const generateSingleSlideContent = async (topic, outline, slideIndex, sty
     - For 'stats' slides, provide an array "stats": [{ "label": "...", "value": "..." }].
     - For 'timeline' slides, provide "timelineItems": [{ "year": "...", "event": "..." }].
     - For 'image' or 'content' slides, also provide an "imageKeyword" for visual search.
+    ${learningContext}
     - Response MUST be a JSON object with properties fitting the type "${slideMeta.type}".
     
     JSON STRUCTURE (MATCH THE TYPE):

@@ -301,6 +301,15 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
   // Helper object field updater (e.g. stats, timeline)
   const updateObjArrayField = (field, arrIndex, attr, newText) => {
     const arr = [...(slide[field] || [])];
+    const originalValue = arr[arrIndex]?.[attr];
+    if (originalValue && newText && originalValue !== newText) {
+      saveAiCorrection({
+        originalValue: String(originalValue),
+        correctedValue: String(newText),
+        type: field,
+        slideTopic: slide.title
+      });
+    }
     arr[arrIndex] = { ...arr[arrIndex], [attr]: newText };
     onUpdateSlide(currentIndex, { ...slide, [field]: arr });
   };
@@ -309,6 +318,10 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
     const col = { ...slide[colName] };
     if (arrIndex !== null) {
       const arr = [...(col[attr] || [])];
+      const originalValue = arr[arrIndex];
+      if (originalValue && newText && originalValue !== newText) {
+         saveAiCorrection({ originalValue, correctedValue: newText, type: "bullet", slideTopic: slide.title });
+      }
       if (newText === null) {
         arr.splice(arrIndex, 1);
       } else {
@@ -316,6 +329,10 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
       }
       col[attr] = arr;
     } else {
+      const originalValue = col[attr];
+      if (originalValue && newText && originalValue !== newText) {
+         saveAiCorrection({ originalValue, correctedValue: newText, type: "general", slideTopic: slide.title });
+      }
       col[attr] = newText;
     }
     onUpdateSlide(currentIndex, { ...slide, [colName]: col });
@@ -711,14 +728,19 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
                   )}
                 </div>
                 {slide.image && (
-                  <div className="w-[45%] flex items-center justify-center p-4 rounded-2xl border-2 bg-slate-900 border-slate-700/50 backdrop-blur-sm self-stretch relative overflow-hidden group">
-                    <div className="absolute inset-0 flex items-center justify-center opacity-20 pointer-events-none">
-                       <div className="w-12 h-12 border-4 border-slate-600 border-t-indigo-500 rounded-full animate-spin" />
+                  <motion.div 
+                    drag 
+                    dragMomentum={false} 
+                    style={{ resize: 'both', overflow: 'hidden', minWidth: '160px', minHeight: '120px' }} 
+                    className="w-[45%] cursor-grab active:cursor-grabbing flex flex-col items-center justify-center p-3 rounded-[2rem] border-2 bg-slate-900/60 border-white/10 backdrop-blur-md self-stretch relative group hover:z-50 shadow-2xl hover:border-indigo-500/30 transition-colors"
+                  >
+                    <div className="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none">
+                       <div className="w-16 h-16 border-4 border-slate-600 border-t-indigo-500 rounded-full animate-spin" />
                     </div>
                     <img 
                       src={slide.image} 
                       alt={slide.title} 
-                      className="relative z-10 max-w-full max-h-full object-cover rounded-xl shadow-2xl transition-all duration-500 group-hover:scale-[1.02]" 
+                      className="relative z-10 w-full h-full object-contain rounded-[1.5rem] shadow-xl pointer-events-none select-none" 
                       loading="lazy"
                       referrerPolicy="no-referrer"
                       onError={(e) => {
@@ -727,7 +749,10 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
                         e.target.src = `https://loremflickr.com/800/600/${topic}`;
                       }}
                     />
-                  </div>
+                    <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-indigo-500 rounded-full opacity-0 group-hover:opacity-100 cursor-nwse-resize flex items-center justify-center z-50 shadow-[0_0_20px_rgba(99,102,241,0.5)] transition-all scale-75 group-hover:scale-100">
+                      <span className="text-white text-base">↘</span>
+                    </div>
+                  </motion.div>
                 )}
               </div>
             </div>
@@ -836,8 +861,16 @@ export default function Aippt() {
   // Persistence: Save
   useEffect(() => {
     if (step === "generating") return; // Don't save while generating
-    const state = { prompt, slides, template, fontStyle, slideCount, activeSlide, showFullPreview };
-    localStorage.setItem("ai_ppt_state", JSON.stringify(state));
+    const saveState = () => {
+      const state = { prompt, slides, template, fontStyle, slideCount, activeSlide, showFullPreview };
+      localStorage.setItem("ai_ppt_state", JSON.stringify(state));
+    };
+
+    saveState();
+
+    // Force save on page unload
+    window.addEventListener("beforeunload", saveState);
+    return () => window.removeEventListener("beforeunload", saveState);
   }, [prompt, slides, template, fontStyle, slideCount, step, activeSlide, showFullPreview]);
 
   // ── Image upload ────────────────────────────────────────────────────────────

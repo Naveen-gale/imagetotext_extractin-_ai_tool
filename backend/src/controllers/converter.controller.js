@@ -260,7 +260,8 @@ export const generateOutline = async (req, res) => {
     if (!prompt) return res.status(400).json({ success: false, error: "Prompt is required." });
 
     try {
-        const outline = await generatePPTOutline(prompt, slideCount || 8, styleGuide);
+        const sessionId = req.headers["x-session-id"] || "anonymous";
+        const outline = await groqService.generatePPTOutline(prompt, slideCount || 8, styleGuide, sessionId);
         return res.status(200).json({ success: true, outline });
     } catch (error) {
         return res.status(500).json({ success: false, error: error.message });
@@ -277,7 +278,8 @@ export const generateSlide = async (req, res) => {
     }
 
     try {
-        const slide = await generateSingleSlideContent(topic, outline, slideIndex, styleGuide);
+        const sessionId = req.headers["x-session-id"] || "anonymous";
+        const slide = await groqService.generateSingleSlideContent(topic, outline, slideIndex, styleGuide, sessionId);
         return res.status(200).json({ success: true, slide });
     } catch (error) {
         return res.status(500).json({ success: false, error: error.message });
@@ -324,8 +326,8 @@ export const generateInsertedSlide = async (req, res) => {
     }
 
     try {
-        const { generateNewInsertedSlide } = await import("../services/groq.service.js");
-        const slide = await generateNewInsertedSlide(topic, currentSlides, insertIndex, styleGuide);
+        const sessionId = req.headers["x-session-id"] || "anonymous";
+        const slide = await groqService.generateNewInsertedSlide(topic, currentSlides, insertIndex, styleGuide, sessionId);
         return res.status(200).json({ success: true, slide });
     } catch (error) {
         return res.status(500).json({ success: false, error: error.message });
