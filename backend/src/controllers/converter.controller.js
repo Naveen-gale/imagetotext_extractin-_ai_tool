@@ -1,4 +1,4 @@
-import { extractTextFromImage, summarizeText, translateText, fixGrammar, extractKeyInfo, generatePPTContent, generatePPTOutline, generateSingleSlideContent, askQuestion, simplifyConcept, generateKnowledgeGraph, suggestionEngine } from "../services/groq.service.js";
+import { extractTextFromImage, summarizeText, translateText, fixGrammar, extractKeyInfo, generatePPTContent, generatePPTOutline, generateSingleSlideContent, generateNewInsertedSlide, editSingleSlideContent, editPPTContent, askQuestion, simplifyConcept, generateKnowledgeGraph, suggestionEngine } from "../services/groq.service.js";
 import { uploadToImageKit } from "../services/imagekit.service.js";
 import { extractDocumentText, formatDocumentTextWithAI } from "../services/document.service.js";
 import { analyzePPTX } from "../services/pptAnalysis.service.js";
@@ -261,7 +261,7 @@ export const generateOutline = async (req, res) => {
 
     try {
         const sessionId = req.headers["x-session-id"] || "anonymous";
-        const outline = await groqService.generatePPTOutline(prompt, slideCount || 8, styleGuide, sessionId);
+        const outline = await generatePPTOutline(prompt, slideCount || 8, styleGuide, sessionId);
         return res.status(200).json({ success: true, outline });
     } catch (error) {
         return res.status(500).json({ success: false, error: error.message });
@@ -279,7 +279,7 @@ export const generateSlide = async (req, res) => {
 
     try {
         const sessionId = req.headers["x-session-id"] || "anonymous";
-        const slide = await groqService.generateSingleSlideContent(topic, outline, slideIndex, styleGuide, sessionId);
+        const slide = await generateSingleSlideContent(topic, outline, slideIndex, styleGuide, sessionId);
         return res.status(200).json({ success: true, slide });
     } catch (error) {
         return res.status(500).json({ success: false, error: error.message });
@@ -327,7 +327,7 @@ export const generateInsertedSlide = async (req, res) => {
 
     try {
         const sessionId = req.headers["x-session-id"] || "anonymous";
-        const slide = await groqService.generateNewInsertedSlide(topic, currentSlides, insertIndex, styleGuide, sessionId);
+        const slide = await generateNewInsertedSlide(topic, currentSlides, insertIndex, styleGuide, sessionId);
         return res.status(200).json({ success: true, slide });
     } catch (error) {
         return res.status(500).json({ success: false, error: error.message });
@@ -382,7 +382,6 @@ export const editPPT = async (req, res) => {
 
     try {
         const sessionId = req.headers["x-session-id"] || "anonymous";
-        const { editPPTContent } = await import("../services/groq.service.js");
         const slides = await editPPTContent(prompt, currentSlides, sessionId);
         return res.status(200).json({ success: true, slides });
     } catch (error) {
@@ -402,7 +401,6 @@ export const editSingleSlide = async (req, res) => {
 
     try {
         const sessionId = req.headers["x-session-id"] || "anonymous";
-        const { editSingleSlideContent } = await import("../services/groq.service.js");
         const updatedSlide = await editSingleSlideContent(prompt, slide, sessionId);
         return res.status(200).json({ success: true, slide: updatedSlide });
     } catch (error) {
