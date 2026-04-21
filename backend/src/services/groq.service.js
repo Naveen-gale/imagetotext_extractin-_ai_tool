@@ -9,11 +9,20 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const pythonScriptPath = path.join(__dirname, "../../fallback_ai.py");
 
+
+
 // Lazy initialization so dotenv loads before API key is read
 let _groq = null;
 export const getGroq = () => {
     if (!_groq) _groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
     return _groq;
+};
+
+/**
+ * Universal Wrapper for Groq calls
+ */
+export const callAiWithFallback = async (groqParams) => {
+    return await getGroq().chat.completions.create(groqParams);
 };
 
 // ─── AI TRAINING DATA (ONLINE PPT REFERENCES) ───────────────────────────────
@@ -91,7 +100,7 @@ export const extractTextFromImage = async (imagePath) => {
         const mimeMap = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif" };
         const mimeType = mimeMap[ext] || "image/jpeg";
 
-        const response = await getGroq().chat.completions.create({
+        const response = await callAiWithFallback({
             model: "meta-llama/llama-4-scout-17b-16e-instruct",
             messages: [
                 {
@@ -123,7 +132,7 @@ export const extractTextFromImage = async (imagePath) => {
  */
 export const summarizeText = async (text) => {
     try {
-        const response = await getGroq().chat.completions.create({
+        const response = await callAiWithFallback({
             model: "llama-3.1-8b-instant",
             messages: [
                 { role: "system", content: "You are a professional summarizer. Create clear, concise summaries." },
@@ -145,7 +154,7 @@ export const summarizeText = async (text) => {
  */
 export const translateText = async (text, targetLanguage) => {
     try {
-        const response = await getGroq().chat.completions.create({
+        const response = await callAiWithFallback({
             model: "llama-3.1-8b-instant",
             messages: [
                 { role: "system", content: `Translate text accurately to ${targetLanguage}. Return ONLY the translated text.` },
@@ -167,7 +176,7 @@ export const translateText = async (text, targetLanguage) => {
  */
 export const fixGrammar = async (text) => {
     try {
-        const response = await getGroq().chat.completions.create({
+        const response = await callAiWithFallback({
             model: "llama-3.1-8b-instant",
             messages: [
                 { role: "system", content: "You are a Smart Error Correction engine. Automatically fix spelling mistakes, correct grammar, and rewrite unclear sentences to make the output clean, professional, and easy to read. Return ONLY the corrected text." },
@@ -189,7 +198,7 @@ export const fixGrammar = async (text) => {
  */
 export const extractKeyInfo = async (text) => {
     try {
-        const response = await getGroq().chat.completions.create({
+        const response = await callAiWithFallback({
             model: "llama-3.1-8b-instant",
             messages: [
                 { role: "system", content: "Extract and categorize key information (names, dates, numbers) from text." },
@@ -211,7 +220,7 @@ export const extractKeyInfo = async (text) => {
  */
 export const askQuestion = async (text, question) => {
     try {
-        const response = await getGroq().chat.completions.create({
+        const response = await callAiWithFallback({
             model: "llama-3.1-8b-instant",
             messages: [
                 { role: "system", content: "You are a helpful assistant. Use the provided text to answer the user's question. Be accurate and concise. If the answer is not in the text, politely say so." },
@@ -233,7 +242,7 @@ export const askQuestion = async (text, question) => {
  */
 export const simplifyConcept = async (text) => {
     try {
-        const response = await getGroq().chat.completions.create({
+        const response = await callAiWithFallback({
             model: "llama-3.1-8b-instant",
             messages: [
                 { role: "system", content: "You are an expert educator. Simplify the following text or concept into easy-to-understand language suitable for a student. Use analogies if helpful. Do NOT use markdown code blocks around your entire answer." },
@@ -254,7 +263,7 @@ export const simplifyConcept = async (text) => {
  */
 export const generateKnowledgeGraph = async (text) => {
     try {
-        const response = await getGroq().chat.completions.create({
+        const response = await callAiWithFallback({
             model: "llama-3.3-70b-versatile",
             messages: [
                 { role: "system", content: "You are a knowledge architect. Create a valid Mermaid.js mindmap diagram connecting the main ideas, entities, and concepts found in the provided text. Keep node names concise. Only output valid Mermaid syntax inside a ```mermaid ... ``` code block. Do NOT include any intro or outro text." },
@@ -278,7 +287,7 @@ export const generateKnowledgeGraph = async (text) => {
  */
 export const suggestionEngine = async (text) => {
     try {
-        const response = await getGroq().chat.completions.create({
+        const response = await callAiWithFallback({
             model: "llama-3.1-8b-instant",
             messages: [
                 { role: "system", content: "You are a real-time study assistant. Identify 3-5 complex terms, key ideas, or interesting facts from the text and provide clear meanings, explanations, and related info for them. Format clearly using markdown bullet points or headers." },
@@ -393,7 +402,7 @@ Each element is a slide object:
         ? "meta-llama/llama-4-scout-17b-16e-instruct"
         : "llama-3.3-70b-versatile";
 
-    const response = await getGroq().chat.completions.create({
+    const response = await callAiWithFallback({
         model,
         messages: [
             { role: "system", content: systemPrompt },
@@ -443,27 +452,28 @@ export const generatePPTOutline = async (topic, slideCount = 8, styleGuide = nul
     const systemPrompt = `You are a professional presentation architect. Your task is to plan a high-quality presentation.
     - Create a coherent narrative flow.
     - ${isAuto ? "Choose an appropriate slide count (typically 6-12) based on the topic depth." : `Plan exactly ${slideCount} slides.`}
-    - For each slide, determine: "type", "title", and a "description" of what the content should cover.
+    - For each slide, determine: "type", "title", and a short concise "description" (max 8 words) to save tokens.
     - ${styleContext}
     - IMPORTANT: If styleGuide is provided, use it ONLY for colors and fonts. ABSOLUTELY DO NOT use its topics or words. Follow the Topic below strictly.
     - Slide types: "title", "content", "image", "two-column", "quote", "timeline", "stats".
     - Respond strictly with JSON: { "outline": [ { "type": "...", "title": "...", "description": "..." }, ... ] }`;
 
-    const response = await getGroq().chat.completions.create({
+    const response = await callAiWithFallback({
         model: "llama-3.3-70b-versatile",
         messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: `Outline a ${isAuto ? "professionally structured" : slideCount + "-slide"} presentation about: ${topic}` },
         ],
         response_format: { type: "json_object" },
-        max_tokens: 1000,
-        temperature: 0.5,
+        max_tokens: 800, // Adjusted back to safe bounds to allow 16+ slide generations without cutting JSON short
+        temperature: 0.3, // Lower variation restricts verbosity
     });
 
     try {
         const data = JSON.parse(response.choices[0].message.content);
         return data.outline || [];
     } catch (e) {
+        console.error("Outline Parse Failed:", e.message);
         throw new Error("Failed to generate outline.");
     }
 };
@@ -488,7 +498,7 @@ export const generateNewInsertedSlide = async (topic, currentSlides, insertIndex
     - Choose fitting type: "content", "image", "two-column", "quote", "timeline", "stats".
     - Respond strictly with JSON for ONE slide object.`;
 
-    const response = await getGroq().chat.completions.create({
+    const response = await callAiWithFallback({
         model: "llama-3.3-70b-versatile",
         messages: [
             { role: "system", content: systemPrompt },
@@ -514,20 +524,24 @@ export const generateSingleSlideContent = async (topic, outline, slideIndex, sty
     const slideMeta = outline[slideIndex];
     if (!slideMeta) throw new Error("Invalid slide index.");
 
+    // Truncate topic to save massive input token usage if they pasted a whole article
+    const truncatedTopic = topic.length > 800 ? topic.substring(0, 800) + "... (refer to outline for structure)" : topic;
+
     const styleContext = styleGuide ? `Follow these style hints: ${JSON.stringify(styleGuide)}` : "";
 
-    const systemPrompt = `You are an expert slide content creator. Generate detailed, professional content for ONE specific slide in a presentation about "${topic}".
+    const systemPrompt = `You are an expert slide content creator. Generate SHORT, concise, and professional content for ONE specific slide in a presentation about "${truncatedTopic}".
     SLIDE CONTEXT: Slide #${slideIndex + 1} of ${outline.length}.
     DESIRED TOPIC: "${slideMeta.title}"
     DESCRIPTION: "${slideMeta.description}"
     ${styleContext}
-    - IMPORTANT: If styleGuide exists, use it ONLY for visual properties. DO NOT repeat its content.
-    - Use sophisticated, senior-level language.
+    - IMPORTANT: KEEP TEXT EXTREMELY SIMPLE AND CLEAR. YOU ARE RESTRICTED TO BARE MINIMUM WORDS.
+    - Bullet points must be max 3-5 words each to save space and massive tokens.
+    - Max 2 or 3 bullet points total per slide. No speakerNotes.
+    - If styleGuide exists, use it ONLY for visual properties.
     - For 'stats' slides, provide an array "stats": [{ "label": "...", "value": "..." }].
     - For 'timeline' slides, provide "timelineItems": [{ "year": "...", "event": "..." }].
     - For 'image' or 'content' slides, also provide an "imageKeyword" for visual search.
     - Response MUST be a JSON object with properties fitting the type "${slideMeta.type}".
-    - Max 5 bullet points.
     
     JSON STRUCTURE (MATCH THE TYPE):
     {
@@ -545,15 +559,15 @@ export const generateSingleSlideContent = async (topic, outline, slideIndex, sty
       "speakerNotes": "..."
     }`;
 
-    const response = await getGroq().chat.completions.create({
+    const response = await callAiWithFallback({
         model: "llama-3.3-70b-versatile",
         messages: [
             { role: "system", content: systemPrompt },
-            { role: "user", content: `Generate content for this slide.` },
+            { role: "user", content: `Generate brief, simple content for this slide using the absolute mathematical minimum word count possible.` },
         ],
         response_format: { type: "json_object" },
-        max_tokens: 800, // PER SLIDE
-        temperature: 0.4,
+        max_tokens: 250, // Enough to finish JSON brackets, minimal enough to save tokens
+        temperature: 0.1, // Minimum temperature
     });
 
     try {
@@ -586,7 +600,7 @@ export const improveTextEngine = async (text, action) => {
         systemPrompt += " Edit the text appropriately.";
     }
 
-    const response = await getGroq().chat.completions.create({
+    const response = await callAiWithFallback({
         model: "llama-3.3-70b-versatile",
         messages: [
             { role: "system", content: systemPrompt },
@@ -624,7 +638,7 @@ ${JSON.stringify(currentSlides, null, 2)}
 
 Return the newly modified slides array as raw JSON.`;
 
-    const response = await getGroq().chat.completions.create({
+    const response = await callAiWithFallback({
         model: "llama-3.3-70b-versatile",
         messages: [
             { role: "system", content: systemPrompt },
@@ -686,7 +700,7 @@ ${JSON.stringify(slide, null, 2)}
 
 Return the updated slide as a JSON object.`;
 
-    const response = await getGroq().chat.completions.create({
+    const response = await callAiWithFallback({
         model: "llama-3.3-70b-versatile",
         messages: [
             { role: "system", content: systemPrompt },

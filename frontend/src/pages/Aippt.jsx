@@ -333,11 +333,15 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
     onUpdateSlide(currentIndex, { ...slide, [field]: arr });
   };
 
-  const toggleImage = () => {
-    if (slide.image) {
-      onUpdateSlide(currentIndex, { ...slide, image: null });
-    } else {
-      onUpdateSlide(currentIndex, { ...slide, images: [...(slide.images || []), "https://loremflickr.com/800/600/" + encodeURIComponent(slide.title)] });
+  const editImage = () => {
+    const defaultUrl = slide.image || ("https://loremflickr.com/800/600/" + encodeURIComponent(slide.title || "presentation"));
+    const url = window.prompt("Enter an image URL, or leave blank to remove the image. Default is a random placeholder:", defaultUrl);
+    if (url !== null) {
+      if (url.trim() === "") {
+        onUpdateSlide(currentIndex, { ...slide, image: null });
+      } else {
+        onUpdateSlide(currentIndex, { ...slide, image: url.trim() });
+      }
     }
   };
 
@@ -567,8 +571,8 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
                 <div className="flex gap-2">
                   <button onClick={addExtraText} title="Add own text/copy-paste" className="text-[10px] bg-slate-800 text-slate-400 px-3 py-1 rounded-full border border-slate-700 hover:text-white transition-all">+ Add Text</button>
                   <button onClick={() => addItem("stats", { value: "0", label: "New Stat" })} className="text-[10px] bg-slate-800 text-slate-400 px-3 py-1 rounded-full border border-slate-700 hover:text-white transition-all">+</button>
-                  <button onClick={toggleImage} className="text-[10px] bg-slate-800 text-slate-400 px-3 py-1 rounded-full border border-slate-700 hover:text-white transition-all">
-                    {slide.image ? "🖼️ Remove Image" : "🖼️ Add Image"}
+                  <button onClick={editImage} className="text-[10px] bg-slate-800 text-slate-400 px-3 py-1 rounded-full border border-slate-700 hover:text-white transition-all">
+                    {slide.image ? "🖼️ Change/Remove Image" : "🖼️ Add Image"}
                   </button>
                 </div>
               </EditableText>
@@ -678,8 +682,8 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
               >
                 <div className="flex gap-2">
                   <button onClick={() => addItem("bullets", "New point")} className="text-[10px] bg-slate-800 text-slate-400 px-3 py-1 rounded-full border border-slate-700 hover:text-white transition-all">+</button>
-                  <button onClick={toggleImage} className="text-[10px] bg-slate-800 text-slate-400 px-3 py-1 rounded-full border border-slate-700 hover:text-white transition-all">
-                    {slide.image ? "🖼️ Remove Image" : "🖼️ Add Image"}
+                  <button onClick={editImage} className="text-[10px] bg-slate-800 text-slate-400 px-3 py-1 rounded-full border border-slate-700 hover:text-white transition-all">
+                    {slide.image ? "🖼️ Change/Remove Image" : "🖼️ Add Image"}
                   </button>
                 </div>
               </EditableText>
@@ -812,7 +816,7 @@ export default function Aippt() {
     const saved = localStorage.getItem("ai_ppt_state");
     if (saved) {
       try {
-        const { prompt: p, slides: s, template: t, fontStyle: f, slideCount: sc } = JSON.parse(saved);
+        const { prompt: p, slides: s, template: t, fontStyle: f, slideCount: sc, activeSlide: aS, showFullPreview: sFP } = JSON.parse(saved);
         if (p) setPrompt(p);
         if (s?.length) {
           setSlides(s);
@@ -821,6 +825,8 @@ export default function Aippt() {
         if (t) setTemplate(t);
         if (f) setFontStyle(f);
         if (sc) setSlideCount(sc);
+        if (aS !== undefined) setActiveSlide(aS);
+        if (sFP !== undefined) setShowFullPreview(sFP);
       } catch (e) {
         console.error("Failed to load saved state", e);
       }
@@ -830,9 +836,9 @@ export default function Aippt() {
   // Persistence: Save
   useEffect(() => {
     if (step === "generating") return; // Don't save while generating
-    const state = { prompt, slides, template, fontStyle, slideCount };
+    const state = { prompt, slides, template, fontStyle, slideCount, activeSlide, showFullPreview };
     localStorage.setItem("ai_ppt_state", JSON.stringify(state));
-  }, [prompt, slides, template, fontStyle, slideCount, step]);
+  }, [prompt, slides, template, fontStyle, slideCount, step, activeSlide, showFullPreview]);
 
   // ── Image upload ────────────────────────────────────────────────────────────
   const handleImageDrop = useCallback((e) => {
@@ -894,9 +900,9 @@ export default function Aippt() {
         generatedSlides.push(slide);
         setSlides([...generatedSlides]); // Update UI live
 
-        // 2-second delay as requested
+        // 4.5-second delay to absolutely prevent hitting 15 Requests-Per-Minute Gemini Free Quota limits
         if (i < totalSteps - 1) {
-          await new Promise(r => setTimeout(r, 2000));
+          await new Promise(r => setTimeout(r, 4500));
         }
       }
 
