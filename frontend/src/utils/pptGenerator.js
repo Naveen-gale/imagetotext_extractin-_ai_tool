@@ -183,7 +183,7 @@ export async function generatePptx(slides, templateKey = "corporate", fontStyleK
 
   const prs = new pptxgen();
   prs.layout = "LAYOUT_WIDE"; // 13.33" x 7.5"
-  prs.author = "VisionText AI";
+  prs.author = "AI Presentation Studio";
   prs.subject = slides[0]?.title || "Presentation";
   prs.title = slides[0]?.title || "Presentation";
 

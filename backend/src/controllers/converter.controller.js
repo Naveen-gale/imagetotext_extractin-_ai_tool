@@ -300,7 +300,7 @@ export const analyzeReference = async (req, res) => {
         if (data.slides && data.slides.length > 0) {
             try {
                 const { editPPTContent } = await import("../services/groq.service.js");
-                const prompt = "I have extracted raw text from a PowerPoint file. Rebuild these slides into a beautiful, highly-structured presentation array. DO NOT change the core information, but DO fix the formatting, choose the most appropriate slide types (e.g. use 'two-column', 'quote', 'timeline' instead of just 'content' if it fits the data), and ensure it reads professionally.";
+                const prompt = "I have extracted raw text from a PowerPoint file. Rebuild these slides into a beautiful, highly-structured presentation array in ChatGPT style. DO NOT change core facts, but fix formatting, use simple language, and provide clear definitions for complex terms. If any slide title is just a number (1, 2, 3...), REGENERATE a descriptive title from the content. Use diverse slide types (two-column, quote, timeline, stats) to make it engaging.";
                 const upgradedSlides = await editPPTContent(prompt, data.slides, "anonymous");
                 if (upgradedSlides && upgradedSlides.length > 0) {
                     finalSlides = upgradedSlides;

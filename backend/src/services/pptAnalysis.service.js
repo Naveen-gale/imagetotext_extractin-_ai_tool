@@ -75,38 +75,66 @@ export const analyzePPTX = async (filePath) => {
                 type: "content"
             };
 
-            const sps = slideJson["p:sld"]?.["p:cSld"]?.[0]?.["p:spTree"]?.[0]?.["p:sp"] || [];
+            const spTree = slideJson["p:sld"]?.["p:cSld"]?.[0]?.["p:spTree"]?.[0];
             
-            sps.forEach(sp => {
-                const txBody = sp["p:txBody"];
-                if (txBody) {
-                    const paragraphs = txBody[0]["a:p"] || [];
-                    const texts = paragraphs.map(p => {
-                        // Extract text from regular runs
-                        const runs = p["a:r"] || [];
-                        let pText = runs.map(r => r["a:t"]?.[0] || "").join("");
-                        
-                        // Extract text from fields (e.g. slide numbers, dates)
-                        const flds = p["a:fld"] || [];
-                        const fldText = flds.map(f => f["a:t"]?.[0] || "").join("");
-                        
-                        return pText + fldText;
-                    }).filter(t => t.trim().length > 0);
+            const extractFromNodes = (nodes) => {
+                if (!nodes) return;
+                const sps = nodes["p:sp"] || [];
+                const grps = nodes["p:grpSp"] || [];
+                const graphics = nodes["p:graphicFrame"] || [];
 
-                    if (texts.length > 0) {
-                        const ph = sp["p:nvSpPr"]?.[0]?.["p:nvPr"]?.[0]?.["p:ph"]?.[0];
-                        const phType = ph?.$.type;
-                        
-                        const isTitle = phType === "title" || phType === "ctrTitle" || phType === "subTitle";
-                        
-                        if (isTitle && !slideContent.title) {
-                            slideContent.title = texts.join(" ");
-                        } else {
-                            slideContent.bullets.push(...texts);
+                sps.forEach(sp => {
+                    const ph = sp["p:nvSpPr"]?.[0]?.["p:nvPr"]?.[0]?.["p:ph"]?.[0];
+                    const phType = ph?.$.type;
+                    if (phType === "sldNum" || phType === "ftr" || phType === "dt") return;
+
+                    const txBody = sp["p:txBody"];
+                    if (txBody) {
+                        const paragraphs = txBody[0]["a:p"] || [];
+                        const texts = paragraphs.map(p => {
+                            const runs = p["a:r"] || [];
+                            let pText = runs.map(r => r["a:t"]?.[0] || "").join("");
+                            const flds = p["a:fld"] || [];
+                            const fldText = flds.map(f => f["a:t"]?.[0] || "").join("");
+                            return pText + fldText;
+                        }).filter(t => {
+                            const trimmed = t.trim();
+                            // Filter out branding watermarks
+                            if (trimmed.toLowerCase().includes("visiontext ai")) return false;
+                            // Ignore purely numeric strings (likely slide numbers not caught by phType)
+                            if (/^\d+$/.test(trimmed) && trimmed.length < 4) return false;
+                            return trimmed.length > 0;
+                        });
+
+                        if (texts.length > 0) {
+                            const isTitle = phType === "title" || phType === "ctrTitle" || phType === "subTitle";
+                            if (isTitle && !slideContent.title) {
+                                slideContent.title = texts.join(" ");
+                            } else {
+                                slideContent.bullets.push(...texts);
+                            }
                         }
                     }
-                }
-            });
+                });
+
+                // Recursively handle group shapes
+                grps.forEach(grp => extractFromNodes(grp));
+                
+                // Handle graphic frames (tables, charts) - basic text extraction
+                graphics.forEach(gf => {
+                    // This is complex for tables, but we can try to find 'a:t' nodes
+                    const rawXml = JSON.stringify(gf);
+                    const matches = rawXml.match(/"a:t":\["([^"]+)"\]/g);
+                    if (matches) {
+                        matches.forEach(m => {
+                            const val = m.match(/"a:t":\["([^"]+)"\]/)[1];
+                            if (val && val.trim().length > 1) slideContent.bullets.push(val.trim());
+                        });
+                    }
+                });
+            };
+
+            extractFromNodes(spTree);
 
             // Fallback: If no title found but bullets exist, promote first bullet to title
             if (!slideContent.title && slideContent.bullets.length > 0) {

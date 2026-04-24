@@ -115,6 +115,9 @@ function SlidePreview({ slide, template, index, isActive, onClick }) {
                  <span style={{ color: `#${tmpl.accent}` }}>•</span> <span>{b}</span>
               </li>
             ))}
+            {!slide.bullets?.length && slide.subtitle && (
+              <div className="text-[10px] sm:text-xs font-bold opacity-80" style={{ color: `#${tmpl.sub}` }}>{slide.subtitle}</div>
+            )}
           </ul>
           {slide.image && (
             <div className="w-1/3 flex items-center justify-center">
@@ -513,7 +516,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
               <div className="absolute top-0 left-0 w-full h-2 z-10" style={{ background: fmtCol(tmpl.accent) }} />
 
           {/* Empty State / Dashboard (Pro Builder) */}
-          {(slide.type === "blank" || (!slide.title && !slide.quote && !slide.bullets?.length && !slide.stats?.length && !slide.timelineItems?.length)) ? (
+          {((!slide.title && !slide.quote && !slide.bullets?.length && !slide.stats?.length && !slide.timelineItems?.length) || slide.type === "blank") ? (
              <div className="flex flex-col items-center justify-center h-full p-20 animate-in zoom-in duration-500">
                 <div className="text-4xl mb-4" style={{ color: fmtCol(tmpl.accent) }}>🏗️</div>
                 <h2 className="text-3xl font-black mb-2" style={{ color: fmtCol(tmpl.title) }}>Empty Slide</h2>
@@ -723,8 +726,17 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
                         />
                       </div>
                     ))
+                  ) : slide.subtitle ? (
+                    <div className="flex flex-col gap-4">
+                      <EditableText 
+                        value={slide.subtitle} onChange={(v) => updateField("subtitle", v)}
+                        baseSize={28} fontSize={slide.customStyles?.subtitle?.fontSize} onSizeChange={(s) => updateCustomSize("subtitle", s)}
+                        className="font-bold opacity-80 w-full" style={{ color: fmtCol(tmpl.sub) }} 
+                      />
+                      <button onClick={() => updateField("bullets", [slide.subtitle])} className="text-[10px] text-indigo-400">Convert Subtitle to Bullet</button>
+                    </div>
                   ) : (
-                    <div className="opacity-40 italic text-2xl font-medium" style={{ color: fmtCol(tmpl.body) }}>Adding detailed content...</div>
+                    slide.title ? null : <div className="opacity-40 italic text-2xl font-medium" style={{ color: fmtCol(tmpl.body) }}>Adding detailed content...</div>
                   )}
                 </div>
                 {slide.image && (
@@ -821,6 +833,8 @@ export default function Aippt() {
   const [sharing, setSharing] = useState(false);
   const [shareUrl, setShareUrl] = useState(null);
   const [error, setError] = useState("");
+  const [showRefineModal, setShowRefineModal] = useState(false);
+  const [refinePrompt, setRefinePrompt] = useState("");
 
   const fileInputRef = useRef(null);
   const pptBlobRef = useRef(null);
@@ -981,6 +995,30 @@ export default function Aippt() {
     setSlides(newSlides);
     if (activeSlide >= newSlides.length) setActiveSlide(newSlides.length - 1);
     pptBlobRef.current = null;
+  };
+
+  const handleRefineEntirePpt = async () => {
+    if (!refinePrompt.trim()) return;
+    setShowRefineModal(false);
+    setStep("generating");
+    setGenStatus({ current: 0, total: 1, msg: "Refining entire presentation with AI..." });
+    setError("");
+    try {
+      const { editPptData } = await import("../utils/api");
+      const updatedSlides = await editPptData(refinePrompt, slides);
+      if (updatedSlides && updatedSlides.length > 0) {
+        setSlides(updatedSlides);
+        pptBlobRef.current = null;
+        setStep("preview");
+        setShowFullPreview(true);
+        setRefinePrompt("");
+      } else {
+        throw new Error("AI returned empty slides.");
+      }
+    } catch (err) {
+      setError(err.message);
+      setStep("preview");
+    }
   };
 
   const handleMoveSlide = (from, to) => {
@@ -1452,6 +1490,12 @@ export default function Aippt() {
                 🔄 Start Over
               </button>
               <button 
+                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 font-bold rounded-xl border border-purple-500/30 transition-all text-sm active:scale-95" 
+                onClick={() => setShowRefineModal(true)} 
+              >
+                ✨ Refine Entire PPT
+              </button>
+              <button 
                 className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-xl border border-indigo-500 shadow-lg shadow-indigo-500/20 transition-all text-sm active:scale-95" 
                 onClick={() => setShowFullPreview(true)} 
                 id="fullpreview-btn"
@@ -1600,6 +1644,36 @@ export default function Aippt() {
         />
       )}
       
+      {showRefineModal && (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-lg shadow-2xl">
+            <h3 className="text-xl font-black text-white mb-4">✨ Edit All Slides</h3>
+            <p className="text-sm text-slate-400 mb-4">Enter a prompt to modify the entire presentation.</p>
+            <textarea
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-slate-200 text-sm focus:ring-2 focus:ring-purple-500/50 outline-none min-h-[120px] mb-4"
+              placeholder="e.g. 'Make it more professional', 'Add more details', 'Simplify the language'"
+              value={refinePrompt}
+              onChange={(e) => setRefinePrompt(e.target.value)}
+            />
+            <div className="flex justify-end gap-3">
+              <button 
+                className="px-5 py-2 rounded-xl font-bold text-slate-300 hover:bg-slate-800 transition-all"
+                onClick={() => setShowRefineModal(false)}
+              >
+                Cancel
+              </button>
+              <button 
+                className="px-5 py-2 rounded-xl font-black text-white bg-purple-600 hover:bg-purple-500 shadow-lg shadow-purple-500/20 transition-all disabled:opacity-50"
+                onClick={handleRefineEntirePpt}
+                disabled={!refinePrompt.trim()}
+              >
+                Apply to All Slides
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showHistory && (
         <HistoryModal 
            onClose={() => setShowHistory(false)}

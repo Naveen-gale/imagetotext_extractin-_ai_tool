@@ -9,21 +9,80 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const pythonScriptPath = path.join(__dirname, "../../fallback_ai.py");
 
+// ─── Multi-Key Groq Pool ──────────────────────────────────────────────────────
+// Reads GROQ_API_KEY, GROQ_API_KEY_2, GROQ_API_KEY_3 ... from .env
+function buildKeyPool() {
+    const keys = [];
+    // Always grab the primary key
+    if (process.env.GROQ_API_KEY) keys.push(process.env.GROQ_API_KEY);
+    // Then grab any numbered extras
+    let n = 2;
+    while (process.env[`GROQ_API_KEY_${n}`]) {
+        keys.push(process.env[`GROQ_API_KEY_${n}`]);
+        n++;
+    }
+    if (keys.length === 0) throw new Error("No GROQ_API_KEY defined in .env");
+    return keys;
+}
 
+let _keyPool = null;
+let _currentKeyIndex = 0;
 
-// Lazy initialization so dotenv loads before API key is read
-let _groq = null;
-export const getGroq = () => {
-    if (!_groq) _groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-    return _groq;
+const getKeyPool = () => {
+    if (!_keyPool) _keyPool = buildKeyPool();
+    return _keyPool;
 };
+
+/** Get a fresh Groq client for the given key index */
+const getGroqClient = (idx) => {
+    const keys = getKeyPool();
+    return new Groq({ apiKey: keys[idx % keys.length] });
+};
+
+/** Legacy export kept for compatibility */
+export const getGroq = () => getGroqClient(_currentKeyIndex);
 
 /**
- * Universal Wrapper for Groq calls
+ * Universal Groq call with automatic key rotation on 429 / rate-limit errors.
+ * Tries every key in the pool before giving up.
  */
 export const callAiWithFallback = async (groqParams) => {
-    return await getGroq().chat.completions.create(groqParams);
+    const pool = getKeyPool();
+    const startIdx = _currentKeyIndex;
+
+    for (let attempt = 0; attempt < pool.length; attempt++) {
+        const idx = (startIdx + attempt) % pool.length;
+        const client = getGroqClient(idx);
+        try {
+            const result = await client.chat.completions.create(groqParams);
+            _currentKeyIndex = idx;
+            return result;
+        } catch (err) {
+            const isRateLimit = err?.status === 429
+                || err?.message?.includes("429")
+                || err?.message?.toLowerCase().includes("rate limit")
+                || err?.message?.toLowerCase().includes("rate_limit");
+
+            if (isRateLimit) {
+                if (attempt < pool.length - 1) {
+                    const nextIdx = (idx + 1) % pool.length;
+                    console.warn(`[Groq] Key #${idx + 1} hit rate limit. Switching to key #${nextIdx + 1}...`);
+                    _currentKeyIndex = nextIdx;
+                    continue; 
+                } else if (groqParams.model !== "llama-3.1-8b-instant") {
+                    // Exhausted all keys for the large model? Try the high-limit 8b model as a last resort.
+                    console.warn(`[Groq] All keys rate limited for ${groqParams.model}. Falling back to llama-3.1-8b-instant...`);
+                    return await client.chat.completions.create({
+                        ...groqParams,
+                        model: "llama-3.1-8b-instant"
+                    });
+                }
+            }
+            throw err;
+        }
+    }
 };
+
 
 // ─── AI TRAINING DATA (ONLINE PPT REFERENCES) ───────────────────────────────
 const ONLINE_PPT_REFERENCES = `
@@ -340,45 +399,42 @@ async function getLearnedContext(sessionId) {
  */
 export const generatePPTContent = async (prompt, base64Image = null, mimeType = "image/jpeg", slideCount = 8, sessionId = "anonymous") => {
     const learningContext = await getLearnedContext(sessionId);
-    const systemPrompt = `You are an expert presentation designer.
-CRITICAL MANDATE: Your SLIDE STRUCTURE and LAYOUT CHOICES must be 100% dictated by the user's prompt. 
-- If the user asks for a "storytelling format", "no bullet points", "data-driven", "every slide different layout", etc., YOU MUST ABSOLUTELY COMPLY. 
-- BREAK any default rules to achieve the user's exact requested structure.
-- To avoid bullet points: Pass a single long sentence into the "bullets" array (e.g. ["Once upon a time..."]) to create a paragraph, or use "quote" slides.
-- For data-driven: Use "stats" and "timeline" extensively.
+    const systemPrompt = `You are an expert presentation designer. Your ENTIRE output must be driven by the user's prompt — topic, tone, and structure.
 
-${ONLINE_PPT_REFERENCES}
-
-DEFAULT RULES (ONLY use these if the user gives a generic topic like "PPT about dogs" and NO structural constraints):
-1. Use a diverse mix of slide types ('content', 'image', 'two-column', 'timeline', 'stats', 'quote').
-2. Slide 1 is "title", the last is "content" or "image".
-3. Keep bullet points concise (max 15-20 words).
-
-RAW DATA RULES:
-If the user provides a large block of extracted text or raw data:
-- CONVERT THEIR EXACT CONTENT into slides reliably.
-- Do NOT excessively summarize. Break their content logically across the slides using the most appropriate slide types.
-
-JSON FIELD ENFORCEMENT:
-- You are restricted to these exact types: "title" | "content" | "image" | "two-column" | "quote" | "timeline" | "stats".
-- Pick the types that BEST MATCH the user's structure requests. Do not default to "content" if "quote" or "image" fits their creative request better.
+CRITICAL RULES:
+1. SLIDE VARIETY: Use a diverse mix of types. DO NOT repeat the same type consecutively. Types: "title", "content", "image", "two-column", "quote", "timeline", "stats".
+2. Slide 1 MUST be "title". ALL other slides (except possibly a concluding 'quote' or 'title' slide at the very end) MUST be content-heavy types: "content", "two-column", "timeline", "stats", or "image". NEVER use "title" type for middle slides.
+3. CONTENT per slide:
+   - Mix longer, detailed explanations with short, punchy bullet points to ensure the user perfectly understands the PPT output. Make it high-level, perfect output like GPT.
+   - "content": 3-5 punchy bullets, each 6-12 words, plus deeper details if needed.
+   - "two-column": Simple comparison.
+   - "stats": Use the user's data EXACTLY if provided.
+   - "timeline": Logical steps (Step 1, Step 2...).
+   - "quote": One powerful quote.
+   - "title": ONLY Slide 1 and optionally the final slide.
+4. FOLLOW USER STRUCTURE: If the prompt contains a list like "Slide 1, Slide 2...", you MUST follow that exact structure.
+5. NO EMPTY PAGES. Every user's PPT MUST be unique, highly accurate, and precisely follow their prompt.
+6. SIMPLE DEFINITIONS: For complex terms, always provide a "Simple Definition: [Definition]" bullet. Emulate GPT's clear, educational, and structured presentation style.
+7. NO FILLER: No "Key point here". Just the facts/meaning simply. 
+8. imageKeyword: ONLY generate an image keyword if the user explicitly says "okay" to images or specifically requests one. Otherwise, leave it empty ("").
+9. NO SELF-BRANDING: NEVER use the words "VisionText AI" or any software names.
 ${learningContext}
 
-Respond ONLY with a valid JSON object containing a "slides" array. Do NOT include markdown, code blocks, or extra text.
-Each element is a slide object:
+Respond ONLY with a valid JSON object: { "slides": [ ...slide objects ] }
+Each slide object:
 {
-  "type": "title" | "content" | "image" | "two-column" | "quote" | "timeline" | "stats",
-  "title": "Slide Title",
-  "subtitle": "Subtitle (Title slides only)",
-  "bullets": ["Point 1", "Point 2", "Point 3"],
-  "quote": "A relevant quote",
-  "author": "Quote author",
-  "leftColumn": { "heading": "Left", "bullets": ["..."] },
-  "rightColumn": { "heading": "Right", "bullets": ["..."] },
-  "stats": [{"label": "...", "value": "..."}, ...],
-  "timelineItems": [{"year": "2020", "event": "Something happened"}, ...],
-  "imageKeyword": "Extremely specific, descriptive prompt for a photorealistic image representing this slide's topic",
-  "speakerNotes": "Presenter notes"
+  "type": "title"|"content"|"image"|"two-column"|"quote"|"timeline"|"stats",
+  "title": "...",
+  "subtitle": "...",
+  "bullets": ["..."],
+  "quote": "...",
+  "author": "...",
+  "leftColumn": { "heading": "...", "bullets": ["..."] },
+  "rightColumn": { "heading": "...", "bullets": ["..."] },
+  "stats": [{"label": "...", "value": "..."}],
+  "timelineItems": [{"year": "...", "event": "..."}],
+  "imageKeyword": "", 
+  "speakerNotes": "..."
 }
 `;
 
@@ -387,14 +443,14 @@ Each element is a slide object:
         userMessages.push({
             role: "user",
             content: [
-                { type: "text", text: `Create a ${slideCount}-slide presentation about: ${prompt}` },
+                { type: "text", text: `Create a ${slideCount}-slide presentation: ${prompt}` },
                 { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Image}` } },
             ],
         });
     } else {
         userMessages.push({
             role: "user",
-            content: `Create a ${slideCount}-slide presentation about: ${prompt}`,
+            content: `Create a ${slideCount}-slide presentation about: ${prompt}. Make every slide type different from adjacent slides. Keep bullet text concise (8-14 words per bullet).`,
         });
     }
 
@@ -409,13 +465,14 @@ Each element is a slide object:
             ...userMessages,
         ],
         max_tokens: 4096,
-        temperature: 0.6,
+        temperature: 0.55,
         response_format: base64Image ? undefined : { type: "json_object" },
     });
 
     const raw = response.choices[0]?.message?.content || "{}";
-    const jsonMatch = raw.match(/(\{\s*"slides"[\s\S]*\}\s*\}?)/m) 
-        || raw.match(/(\[\s*\{[\s\S]*\}\s*\])/m) 
+    const jsonMatch = raw.match(/(\{\s*"slides"[\s\S]*?\}\s*\]\s*\})/m)
+        || raw.match(/(\{\s*"slides"[\s\S]*\})/m)
+        || raw.match(/(\[\s*\{[\s\S]*\}\s*\])/m)
         || raw.match(/```(?:json)?\s*([\s\S]*?)```/);
 
     const jsonStr = jsonMatch ? jsonMatch[1] : raw;
@@ -423,20 +480,13 @@ Each element is a slide object:
     try {
         let slides = JSON.parse(jsonStr);
         slides = Array.isArray(slides) ? slides : (slides.slides || slides.presentation || []);
-        
-        // Post-process to ensure images are only used if appropriate
-        // AND convert keywords to professional placeholder URLs
-        // Use LoremFlickr or Unsplash Source for reliable topic-based images
-        const finalSlides = slides.map(s => {
+        return slides.map(s => {
             if (s.imageKeyword) {
-                // Topic-based high-res AI images using pollinations (free, precise topic matching)
                 const seed = Math.floor(Math.random() * 1000000);
                 s.image = `https://image.pollinations.ai/prompt/${encodeURIComponent(s.imageKeyword)}?width=800&height=600&seed=${seed}&model=flux&nologo=true`;
             }
             return s;
         });
-
-        return finalSlides;
     } catch {
         throw new Error("AI did not return valid slide JSON. Please try again.");
     }
@@ -451,14 +501,13 @@ export const generatePPTOutline = async (topic, slideCount = 8, styleGuide = nul
     const styleContext = styleGuide ? `Adhere to this design style guide extracted from a reference: ${JSON.stringify(styleGuide)}` : "";
     
     const systemPrompt = `You are a professional presentation architect. Your task is to plan a high-quality presentation.
-    - Create a coherent narrative flow.
-    - ${isAuto ? "Choose an appropriate slide count (typically 6-12) based on the topic depth." : `Plan exactly ${slideCount} slides.`}
-    - For each slide, determine: "type", "title", and a short concise "description" (max 8 words) to save tokens.
-    - ${styleContext}
-    - IMPORTANT: If styleGuide is provided, use it ONLY for colors and fonts. ABSOLUTELY DO NOT use its topics or words. Follow the Topic below strictly.
+    - Create a coherent, engaging narrative flow with a strong opening and clear conclusion.
+    - ${isAuto ? "Choose an appropriate slide count based on the topic depth." : `Plan exactly ${slideCount} slides.`}
+    - IF USER PROVIDED A LIST OF SLIDES (Slide 1, Slide 2...), USE THEM EXACTLY. DO NOT summarize or skip them.
+    - NO empty pages. Every user's PPT should be unique and highly accurate according to their prompt. Provide a high-level, perfectly structured GPT-like outline.
+    - For each slide, determine: "type", "title", and "description".
     - Slide types: "title", "content", "image", "two-column", "quote", "timeline", "stats".
-    ${learningContext}
-    - Respond strictly with JSON: { "outline": [ { "type": "...", "title": "...", "description": "..." }, ... ] }`;
+    - Respond strictly with JSON: { "outline": [ ... ] }`;
 
     const response = await callAiWithFallback({
         model: "llama-3.3-70b-versatile",
@@ -467,8 +516,8 @@ export const generatePPTOutline = async (topic, slideCount = 8, styleGuide = nul
             { role: "user", content: `Outline a ${isAuto ? "professionally structured" : slideCount + "-slide"} presentation about: ${topic}` },
         ],
         response_format: { type: "json_object" },
-        max_tokens: 800, // Adjusted back to safe bounds to allow 16+ slide generations without cutting JSON short
-        temperature: 0.3, // Lower variation restricts verbosity
+        max_tokens: 2000, // Enough for 16+ slides with meaningful descriptions
+        temperature: 0.4,
     });
 
     try {
@@ -529,51 +578,46 @@ export const generateSingleSlideContent = async (topic, outline, slideIndex, sty
     const slideMeta = outline[slideIndex];
     if (!slideMeta) throw new Error("Invalid slide index.");
 
-    // Truncate topic to save massive input token usage if they pasted a whole article
-    const truncatedTopic = topic.length > 800 ? topic.substring(0, 800) + "... (refer to outline for structure)" : topic;
+    const truncatedTopic = topic.length > 600 ? topic.substring(0, 600) + "..." : topic;
+    const styleContext = styleGuide ? `Style (colors/fonts only): ${JSON.stringify(styleGuide).slice(0, 200)}` : "";
 
-    const styleContext = styleGuide ? `Follow these style hints: ${JSON.stringify(styleGuide)}` : "";
+    // Per-type instructions: what fields + concise length guidance
+    const typeRules = {
+        "title":      "title (short, catchy), subtitle (1 line tagline). NO bullets.",
+        "content":    "title, bullets: 3-5 items, each 8-12 words, factual and specific.",
+        "image":      "title, bullets: 2-3 items (8-10 words each), imageKeyword: vivid photorealistic scene.",
+        "two-column": "title, leftColumn {heading, bullets: 3 items, 8-10 words each}, rightColumn {heading, bullets: 3 items, 8-10 words each}.",
+        "quote":      "title, quote (15-25 words, powerful and relevant), author (real name or role).",
+        "timeline":   "title, timelineItems: 4-5 items each with year and event (8-12 words).",
+        "stats":      "title, stats: 4-5 items each with label (2-4 words) and value (number/%). Use realistic data.",
+    };
+    const rule = typeRules[slideMeta.type] || typeRules["content"];
 
-    const systemPrompt = `You are an expert slide content creator. Generate SHORT, concise, and professional content for ONE specific slide in a presentation about "${truncatedTopic}".
-    SLIDE CONTEXT: Slide #${slideIndex + 1} of ${outline.length}.
-    DESIRED TOPIC: "${slideMeta.title}"
-    DESCRIPTION: "${slideMeta.description}"
-    ${styleContext}
-    - IMPORTANT: KEEP TEXT EXTREMELY SIMPLE AND CLEAR. YOU ARE RESTRICTED TO BARE MINIMUM WORDS.
-    - Bullet points must be max 3-5 words each to save space and massive tokens.
-    - Max 2 or 3 bullet points total per slide. No speakerNotes.
-    - If styleGuide exists, use it ONLY for visual properties.
-    - For 'stats' slides, provide an array "stats": [{ "label": "...", "value": "..." }].
-    - For 'timeline' slides, provide "timelineItems": [{ "year": "...", "event": "..." }].
-    - For 'image' or 'content' slides, also provide an "imageKeyword" for visual search.
-    ${learningContext}
-    - Response MUST be a JSON object with properties fitting the type "${slideMeta.type}".
-    
-    JSON STRUCTURE (MATCH THE TYPE):
-    {
-      "type": "${slideMeta.type}",
-      "title": "${slideMeta.title}",
-      "subtitle": "...",
-      "bullets": ["...", "..."],
-      "quote": "...",
-      "author": "...",
-        "leftColumn": { "heading": "...", "bullets": ["..."] },
-        "rightColumn": { "heading": "...", "bullets": ["..."] },
-        "stats": [{"label": "...", "value": "..."}, ...],
-        "timelineItems": [{"year": "...", "event": "..."}, ...],
-      "imageKeyword": "Extremely descriptive prompt",
-      "speakerNotes": "..."
-    }`;
+    const systemPrompt = `Generate ONE presentation slide as JSON.
+Topic: "${truncatedTopic}"
+Slide ${slideIndex + 1}/${outline.length} | Type: ${slideMeta.type} | Title: "${slideMeta.title}"
+Brief: ${slideMeta.description}
+
+- Fields to fill: ${rule}
+- Content: USE USER DATA IF PROVIDED. Mix longer, detailed explanations with short, punchy bullet points to ensure the user perfectly understands the PPT output.
+- CHATGPT STYLE: Emulate GPT's high-level, perfect output. Make it clear, highly educational, and well-structured. Provide clear analogies and simple definitions.
+- NO empty pages. EVERY user's PPT MUST be unique, highly accurate, and precisely follow their prompt.
+- imageKeyword: ONLY generate an image keyword if the user explicitly said "okay" to images or specifically requested one. Otherwise, leave it empty ("").
+- NO jargon unless explained. NO placeholder text. NO filler.
+- speakerNotes: 1 sentence only.
+${styleContext}${learningContext}
+
+Return ONLY valid JSON. Ensure all arrays (bullets, timelineItems, etc.) are NOT empty.`;
 
     const response = await callAiWithFallback({
         model: "llama-3.3-70b-versatile",
         messages: [
             { role: "system", content: systemPrompt },
-            { role: "user", content: `Generate brief, simple content for this slide using the absolute mathematical minimum word count possible.` },
+            { role: "user", content: `Create slide ${slideIndex + 1}: "${slideMeta.title}" (type: ${slideMeta.type})` },
         ],
         response_format: { type: "json_object" },
-        max_tokens: 250, // Enough to finish JSON brackets, minimal enough to save tokens
-        temperature: 0.1, // Minimum temperature
+        max_tokens: 1500, // Increased for more detailed slides
+        temperature: 0.45,
     });
 
     try {
@@ -628,13 +672,17 @@ export const editPPTContent = async (prompt, currentSlides, sessionId = "anonymo
 You are given the JSON array of the CURRENT SLIDES of a presentation, and a USER REQUEST detailing how they want to edit or improve the presentation.
 IMPORTANT INSTRUCTIONS:
 - Apply the user's modifications to the presentation brilliantly. If they ask for expansion, add deep, valuable details and technical facts.
-- TEXT FIT: Keep bullet points concise (max 15-20 words) to ensure they fit the full-screen slide.
-- VARIETY: If the user asks for a theme change, adjust the layouts and details significantly. Do not keep all slides the same layout.
-- You MUST preserve any 'customStyles' objects attached to the slides exactly as they are.
-- Ensure every slide has 4-5 bullet points of high-quality information.
-- Use diverse slide types ('stats', 'timeline', 'two-column', etc.) to make the edit feel professional.
-- Respond ONLY with a valid JSON object containing a "slides" array with exactly the updated slide objects. Do NOT include extra metadata.
-- Ensure the result is still a high-quality professional presentation with excellent structural writing.
+- PRESERVE ALL DATA: Do NOT remove or skip any information from the current slides unless specifically asked to delete it. Every bullet point must be preserved or improved, never lost.
+- TEXT FIT: Keep bullet points clear and substantial (10-20 words). DO NOT OVERLAP.
+- LOGIC: Ensure timelines make sense. Ensure content slides have bullets.
+- IMAGES: Do NOT add images unless requested.
+- SIMPLE MEANING: Maintain educational simplicity while providing deep value.
+- CHATGPT STYLE: Emulate ChatGPT's clear, structured, and simple presentation style. Use easy definitions and analogies.
+- FIX TITLES: If the input slides have numbers (1, 2, 3) as titles, REGENERATE proper descriptive titles based on the slide content.
+- NO SELF-BRANDING: NEVER use "VisionText AI" as a title or content.
+- VARIETY: Use diverse slide types but only if they fit the topic's logic.
+- You MUST preserve any 'customStyles' objects.
+- Respond ONLY with a valid JSON object containing a "slides" array.
 ${await getLearnedContext(sessionId)}`;
 
     const userMessage = `USER REQUEST: "${prompt}"
@@ -650,7 +698,7 @@ Return the newly modified slides array as raw JSON.`;
             { role: "system", content: systemPrompt },
             { role: "user", content: userMessage },
         ],
-        max_tokens: 6000,
+        max_tokens: 4000, // Reduced from 6000 to save TPD tokens
         temperature: 0.4,
         response_format: { type: "json_object" },
     });
@@ -690,13 +738,12 @@ export const editSingleSlideContent = async (prompt, slide, sessionId = "anonymo
     const systemPrompt = `You are an expert presentation designer. 
 You are given ONE CURRENT SLIDE and a USER REQUEST to refine or improve it.
 IMPORTANT INSTRUCTIONS:
-- Apply the user's modifications ONLY to this single slide brilliantly.
-- If they ask for more detail, add deep, valuable technical facts.
-- TEXT FIT: Keep bullet points concise (max 15-20 words) to ensure they fit the full-screen slide.
-- Preserve any 'customStyles' exactly.
-- Return ONLY the updated slide object as valid JSON.
-- DO NOT return an array. Return a single object.
-- If the prompt implies a visual change, update 'imageKeyword' appropriately.
+- Apply modifications simply and brilliantly.
+- USE USER DATA if provided. Do not invent facts.
+- TEXT FIT: Keep bullets short (max 12 words).
+- IMAGES: Do NOT add unless requested.
+- Preserve 'customStyles'.
+- Return ONLY the updated slide object as JSON.
 ${await getLearnedContext(sessionId)}`;
 
     const userMessage = `USER REQUEST: "${prompt}"
