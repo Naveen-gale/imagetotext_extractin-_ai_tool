@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import "./index.css";
 import Header from "./components/Header";
 import Toast from "./components/Toast";
+import SmoothScroll from "./components/SmoothScroll";
 import Dashboard from "./pages/Dashboard";
 import Extract from "./pages/Extract";
 import Aippt from "./pages/Aippt";
@@ -13,6 +14,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <SmoothScroll />
       <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
         <Header />
 
