@@ -375,12 +375,20 @@ async function getLearnedContext(sessionId) {
 
         if (corrections.length === 0) return "";
 
-        let context = "\n\n### LEARNED USER PREFERENCES (Based on your previous mistakes):\n";
-        context += "The user has previously corrected your output. DO NOT repeat these mistakes. Evolve based on these interactions:\n";
+        let context = "\n\n### USER STYLE ADAPTATION (Successful Examples):\n";
+        context += "The user has previously refined your output. Use these examples to adapt your tone and depth to their preferred style:\n";
+        
         corrections.forEach(c => {
-            context += `- When you wrote: "${c.originalValue}", the user corrected it to: "${c.correctedValue}"\n`;
+            const type = c.input?.type || "content";
+            const topic = c.input?.topic || "general";
+            const corrected = c.output?.text;
+            
+            if (corrected) {
+                context += `- Preferred ${type} format for "${topic}": "${corrected}"\n`;
+            }
         });
-        context += "Adapt your tone, vocabulary, and style to match these corrections.\n";
+        
+        context += "\nMaintain your current high-quality, structured presentation style while incorporating these specific phrasing preferences.\n";
         return context;
     } catch (err) {
         console.warn("[Learning] Could not fetch corrections:", err.message);

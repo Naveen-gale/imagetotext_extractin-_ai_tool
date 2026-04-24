@@ -1,10 +1,13 @@
-# ImageToPDF AI Converter
+## ✨ Core Features
+- **OCR Text Extraction**: Extract text from images using high-performance Groq AI.
+- **AI Presentation Studio**: Generate professional-grade PowerPoint presentations from a simple prompt or image.
+- **Manual Editor**: Fine-tune slides with a premium, drag-and-drop enabled visual editor.
+- **Advanced Auto-Learning AI**: The system "learns" from your manual edits to improve future generation quality, adapting to your personal style and terminology.
+- **Multi-Format Export**: Export results as PDF, DOCX, or PPTX.
 
-Full-stack MERN application that extracts text from images using Groq AI, reconstructs it using native structures (tables, lists, paragraphs), and outputs formatted PDF/DOCX files.
-
-## Project Structure
-- `frontend/`: React + Vite application using Tailwind CSS.
-- `backend/`: Node.js + Express application integrating Groq SDK, officeparser, and ImageKit.
+## 📂 Project Structure
+- `frontend/`: React + Vite application using Tailwind CSS and Framer Motion.
+- `backend/`: Node.js + Express + MongoDB application integrating Groq SDK, ImageKit, and advanced prompt engineering.
 
 ---
 
@@ -27,6 +30,7 @@ We will be deploying the **Backend to Render** and the **Frontend to Vercel**.
    - `IMAGEKIT_PUBLIC_KEY`: `your_imagekit_public_key`
    - `IMAGEKIT_PRIVATE_KEY`: `your_imagekit_private_key`
    - `IMAGEKIT_URL_ENDPOINT`: `your_imagekit_url`
+   - `MONGODB_URI`: `your_mongodb_connection_string`
    - `FRONTEND_URL`: Leave blank until you deploy Vercel, then come back and add `https://your-frontend-url.vercel.app`.
 4. **Deploy**: Click "Create Web Service". 
 5. Wait for it to build. **Copy the backend URL** (e.g., `https://imagetopdf-backend.onrender.com`).
@@ -67,6 +71,7 @@ Go back to your Backend on Render, and ensure `FRONTEND_URL` is set to the Verce
    IMAGEKIT_PUBLIC_KEY=your_public_key
    IMAGEKIT_PRIVATE_KEY=your_private_key
    IMAGEKIT_URL_ENDPOINT=your_endpoint
+   MONGODB_URI=mongodb://localhost:27017/imagetotext_ppt
    ```
 
 3. **Run the Full App Locally**:

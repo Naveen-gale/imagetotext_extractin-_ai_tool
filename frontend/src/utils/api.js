@@ -298,12 +298,12 @@ export async function aiSuggestions(text) {
 /**
  * NEW: Save user correction for Auto-Learning AI
  */
-export async function saveAiCorrection({ originalValue, correctedValue, type, slideTopic }) {
+export async function saveAiCorrection({ originalValue, correctedValue, type, slideTopic, slideType }) {
   try {
     const res = await fetch(`${BASE}/ai/learn`, {
       method: "POST",
       headers: getHeaders(),
-      body: JSON.stringify({ originalValue, correctedValue, type, slideTopic }),
+      body: JSON.stringify({ originalValue, correctedValue, type, slideTopic, slideType }),
     });
     return await handleResponse(res, "Correction Learning");
   } catch (err) {

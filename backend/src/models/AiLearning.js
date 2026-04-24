@@ -2,10 +2,28 @@ import mongoose from 'mongoose';
 
 const aiLearningSchema = new mongoose.Schema({
     sessionId: { type: String, index: true },
-    originalValue: { type: String, required: true },
-    correctedValue: { type: String, required: true },
-    type: { type: String, enum: ['title', 'bullet', 'quote', 'stat', 'timeline', 'style', 'general'], default: 'general' },
-    slideTopic: { type: String },
+    
+    input: {
+        type: { type: String }, // 'title', 'bullet', etc.
+        topic: { type: String },
+        text: { type: String }
+    },
+
+    output: {
+        text: { type: String }
+    },
+
+    context: {
+        slide_type: { type: String },
+        style: { type: String },
+        max_words: { type: Number }
+    },
+
+    meta: {
+        source: { type: String, default: 'user_edit' },
+        confidence: { type: Number, default: 1.0 }
+    },
+
     createdAt: { type: Date, default: Date.now },
 });
 

@@ -302,10 +302,23 @@ export const analyzeReference = async (req, res) => {
             try {
                 const learningEntries = data.slides.slice(0, 5).map(s => ({
                     sessionId,
-                    originalValue: "Reference Presentation Style",
-                    correctedValue: `User's Reference Slide - Title: "${s.title}", Content: "${(s.bullets || []).join('; ')}"`,
-                    type: "general",
-                    slideTopic: s.title
+                    input: {
+                        type: "reference",
+                        topic: s.title || "N/A",
+                        text: "Reference Presentation Style"
+                    },
+                    output: {
+                        text: `Reference Slide - Title: "${s.title}", Content: "${(s.bullets || []).join('; ')}"`
+                    },
+                    context: {
+                        slide_type: s.type || "content",
+                        style: "reference_import",
+                        max_words: 100
+                    },
+                    meta: {
+                        source: "pptx_import",
+                        confidence: 0.9
+                    }
                 }));
                 await AiLearning.insertMany(learningEntries);
                 console.log(`[Learning] Imported ${learningEntries.length} reference samples from PPTX.`);
@@ -426,8 +439,9 @@ export const editSingleSlide = async (req, res) => {
  * Body: { sessionId, originalValue, correctedValue, type, slideTopic }
  */
 export const saveLearningData = async (req, res) => {
-    const { originalValue, correctedValue, type, slideTopic } = req.body;
+    const { originalValue, correctedValue, type, slideTopic, slideType } = req.body;
     const sessionId = req.headers["x-session-id"] || req.body.sessionId || "anonymous";
+
     if (!originalValue || !correctedValue) {
         return res.status(400).json({ success: false, error: "originalValue and correctedValue are required." });
     }
@@ -440,14 +454,27 @@ export const saveLearningData = async (req, res) => {
 
         const learning = new AiLearning({
             sessionId: sessionId || "anonymous",
-            originalValue,
-            correctedValue,
-            type: type || "general",
-            slideTopic
+            input: {
+                type: type || "general",
+                topic: slideTopic || "N/A",
+                text: originalValue
+            },
+            output: {
+                text: correctedValue
+            },
+            context: {
+                slide_type: slideType || type || "general",
+                style: "standard",
+                max_words: correctedValue.split(/\s+/).length + 5
+            },
+            meta: {
+                source: "user_edit",
+                confidence: 1.0
+            }
         });
 
         await learning.save();
-        console.log(`[Learning] Saved correction: "${originalValue}" -> "${correctedValue}"`);
+        console.log(`[Learning] Saved correction in new format: "${originalValue}" -> "${correctedValue}"`);
         return res.status(200).json({ success: true });
     } catch (error) {
         return res.status(500).json({ success: false, error: error.message });

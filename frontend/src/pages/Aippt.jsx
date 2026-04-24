@@ -266,11 +266,26 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
         originalValue,
         correctedValue: newText,
         type: field,
-        slideTopic: slide.title
+        slideTopic: slide.title,
+        slideType: slide.type
       });
     }
     onUpdateSlide(currentIndex, { ...slide, [field]: newText });
   };
+
+  const updatePos = (field, pos) => {
+    onUpdateSlide(currentIndex, {
+      ...slide,
+      layout: {
+        ...slide.layout,
+        text: {
+          ...slide.layout?.text,
+          [field]: pos
+        }
+      }
+    });
+  };
+
   const updateCustomSize = (field, size) => {
     onUpdateSlide(currentIndex, { 
       ...slide, 
@@ -286,12 +301,30 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
         originalValue,
         correctedValue: newText,
         type: field,
-        slideTopic: slide.title
+        slideTopic: slide.title,
+        slideType: slide.type
       });
     }
     arr[arrIndex] = newText;
     onUpdateSlide(currentIndex, { ...slide, [field]: arr });
   };
+
+  const updateArrayPos = (field, arrIndex, pos) => {
+    const textLayout = slide.layout?.text || {};
+    const arr = { ...(textLayout[field] || {}) };
+    arr[arrIndex] = pos;
+    onUpdateSlide(currentIndex, {
+      ...slide,
+      layout: {
+        ...slide.layout,
+        text: {
+          ...textLayout,
+          [field]: arr
+        }
+      }
+    });
+  };
+
   const updateArraySize = (field, arrIndex, size) => {
     const arrStyles = { ...(slide.customStyles?.[field] || {}) };
     arrStyles[arrIndex] = { fontSize: size };
@@ -310,7 +343,8 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
         originalValue: String(originalValue),
         correctedValue: String(newText),
         type: field,
-        slideTopic: slide.title
+        slideTopic: slide.title,
+        slideType: slide.type
       });
     }
     arr[arrIndex] = { ...arr[arrIndex], [attr]: newText };
@@ -323,7 +357,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
       const arr = [...(col[attr] || [])];
       const originalValue = arr[arrIndex];
       if (originalValue && newText && originalValue !== newText) {
-         saveAiCorrection({ originalValue, correctedValue: newText, type: "bullet", slideTopic: slide.title });
+         saveAiCorrection({ originalValue, correctedValue: newText, type: "bullet", slideTopic: slide.title, slideType: slide.type });
       }
       if (newText === null) {
         arr.splice(arrIndex, 1);
@@ -334,7 +368,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
     } else {
       const originalValue = col[attr];
       if (originalValue && newText && originalValue !== newText) {
-         saveAiCorrection({ originalValue, correctedValue: newText, type: "general", slideTopic: slide.title });
+         saveAiCorrection({ originalValue, correctedValue: newText, type: "general", slideTopic: slide.title, slideType: slide.type });
       }
       col[attr] = newText;
     }
@@ -555,11 +589,13 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
             <div className="flex flex-col items-center justify-center h-full text-center p-4 sm:p-8 overflow-hidden">
               <EditableText 
                 value={slide.title} onChange={(v) => updateField("title", v)}
+                pos={slide.layout?.text?.title} onPosChange={(p) => updatePos("title", p)}
                 baseSize={56} fontSize={slide.customStyles?.title?.fontSize} onSizeChange={(s) => updateCustomSize("title", s)}
                 className="font-black mb-6 w-full text-center flex-shrink-0" style={{ color: fmtCol(tmpl.title), lineHeight: 1.2, fontFamily: "'Space Grotesk', sans-serif" }} 
               />
               <EditableText 
                 value={slide.subtitle || ""} onChange={(v) => updateField("subtitle", v)}
+                pos={slide.layout?.text?.subtitle} onPosChange={(p) => updatePos("subtitle", p)}
                 baseSize={30} fontSize={slide.customStyles?.subtitle?.fontSize} onSizeChange={(s) => updateCustomSize("subtitle", s)}
                 className="font-bold opacity-80 w-full text-center" style={{ color: fmtCol(tmpl.sub) }} 
               />
@@ -569,12 +605,14 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
               <div className="text-[120px] font-serif leading-none absolute top-12 left-12 opacity-20" style={{ color: fmtCol(tmpl.accent) }}>"</div>
               <EditableText 
                 value={slide.quote || slide.title || ""} onChange={(v) => updateField("quote", v)}
+                pos={slide.layout?.text?.quote} onPosChange={(p) => updatePos("quote", p)}
                 baseSize={40} fontSize={slide.customStyles?.quote?.fontSize} onSizeChange={(s) => updateCustomSize("quote", s)}
                 className="font-bold italic relative z-10 w-full" style={{ color: fmtCol(tmpl.title), lineHeight: 1.4 }} 
               />
               <div className="mt-8 text-right relative z-10">
                 <EditableText 
                   value={slide.author || ""} onChange={(v) => updateField("author", v)}
+                  pos={slide.layout?.text?.author} onPosChange={(p) => updatePos("author", p)}
                   baseSize={24} fontSize={slide.customStyles?.author?.fontSize} onSizeChange={(s) => updateCustomSize("author", s)}
                   className="font-black uppercase tracking-[0.2em] inline-block text-right" style={{ color: fmtCol(tmpl.sub) }} placeholder="Author name"
                 />
@@ -584,6 +622,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
             <div className="flex flex-col h-full p-4 sm:p-8 overflow-hidden">
               <EditableText 
                 value={slide.title} onChange={(v) => updateField("title", v)}
+                pos={slide.layout?.text?.title} onPosChange={(p) => updatePos("title", p)}
                 baseSize={48} fontSize={slide.customStyles?.title?.fontSize} onSizeChange={(s) => updateCustomSize("title", s)}
                 component="h2" className="font-black mb-8 border-b-2 pb-4 w-full flex justify-between items-center" 
                 style={{ color: tmpl.highlight.startsWith("#") ? tmpl.highlight : `#${tmpl.highlight}`, borderColor: (tmpl.accent.startsWith("#") ? tmpl.accent : `#${tmpl.accent}`) + "33" }} 
@@ -602,6 +641,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
                      <button onClick={() => removeItem("stats", i)} className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-red-500">✕</button>
                      <EditableText 
                         value={s.value} onChange={(v) => updateObjArrayField("stats", i, "value", v)}
+                        pos={slide.layout?.text?.stats_val?.[i]} onPosChange={(p) => updateArrayPos("stats_val", i, p)}
                         baseSize={64} fontSize={slide.customStyles?.stats_val?.[i]?.fontSize} onSizeChange={(sz) => updateArraySize("stats_val", i, sz)}
                         className="font-black w-full" style={{ color: fmtCol(tmpl.accent), lineHeight: 1 }} 
                      />
@@ -620,6 +660,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
             <div className="flex flex-col h-full p-4 sm:p-8 overflow-hidden">
               <EditableText 
                 value={slide.title} onChange={(v) => updateField("title", v)}
+                pos={slide.layout?.text?.title} onPosChange={(p) => updatePos("title", p)}
                 baseSize={48} fontSize={slide.customStyles?.title?.fontSize} onSizeChange={(s) => updateCustomSize("title", s)}
                 component="h2" className="font-black mb-8 border-b-2 pb-4 w-full" style={{ color: fmtCol(tmpl.highlight), borderColor: fmtCol(tmpl.accent) + "33" }} 
               />
@@ -628,6 +669,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
                   <EditableText 
                     className="font-black uppercase tracking-widest w-full mb-2" style={{ color: tmpl.accent.startsWith("#") ? tmpl.accent : `#${tmpl.accent}` }} 
                     value={slide.leftColumn?.heading} onChange={(v) => updateColField("leftColumn", "heading", v)}
+                    pos={slide.layout?.text?.leftHead} onPosChange={(p) => updatePos("leftHead", p)}
                     baseSize={24} fontSize={slide.customStyles?.leftHead?.fontSize} onSizeChange={(s) => updateCustomSize("leftHead", s)}
                   />
                   {(slide.leftColumn?.bullets || []).map((b, i) => (
@@ -637,6 +679,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
                       <EditableText 
                         className="font-medium leading-relaxed w-full" style={{ color: tmpl.body.startsWith("#") ? tmpl.body : `#${tmpl.body}` }} 
                         value={b} onChange={(v) => updateColField("leftColumn", "bullets", v, i)}
+                        pos={slide.layout?.text?.leftBullets?.[i]} onPosChange={(p) => updateArrayPos("leftBullets", i, p)}
                         baseSize={24} fontSize={slide.customStyles?.leftBullets?.[i]?.fontSize} onSizeChange={(s) => updateArraySize("leftBullets", i, s)}
                       />
                     </div>
@@ -648,6 +691,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
                   <EditableText 
                     className="font-black uppercase tracking-widest w-full mb-2" style={{ color: tmpl.accent.startsWith("#") ? tmpl.accent : `#${tmpl.accent}` }} 
                     value={slide.rightColumn?.heading} onChange={(v) => updateColField("rightColumn", "heading", v)}
+                    pos={slide.layout?.text?.rightHead} onPosChange={(p) => updatePos("rightHead", p)}
                     baseSize={24} fontSize={slide.customStyles?.rightHead?.fontSize} onSizeChange={(s) => updateCustomSize("rightHead", s)}
                   />
                   {(slide.rightColumn?.bullets || []).map((b, i) => (
@@ -657,6 +701,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
                       <EditableText 
                         className="font-medium leading-relaxed w-full" style={{ color: tmpl.body.startsWith("#") ? tmpl.body : `#${tmpl.body}` }} 
                         value={b} onChange={(v) => updateColField("rightColumn", "bullets", v, i)}
+                        pos={slide.layout?.text?.rightBullets?.[i]} onPosChange={(p) => updateArrayPos("rightBullets", i, p)}
                         baseSize={24} fontSize={slide.customStyles?.rightBullets?.[i]?.fontSize} onSizeChange={(s) => updateArraySize("rightBullets", i, s)}
                       />
                     </div>
@@ -669,6 +714,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
             <div className="flex flex-col h-full p-4 sm:p-8 overflow-hidden">
               <EditableText 
                 value={slide.title} onChange={(v) => updateField("title", v)}
+                pos={slide.layout?.text?.title} onPosChange={(p) => updatePos("title", p)}
                 baseSize={48} fontSize={slide.customStyles?.title?.fontSize} onSizeChange={(s) => updateCustomSize("title", s)}
                 component="h2" className="font-black mb-8 border-b-2 pb-4 w-full" style={{ color: fmtCol(tmpl.highlight), borderColor: fmtCol(tmpl.accent) + "33" }} 
               />
@@ -682,11 +728,13 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
                     <EditableText 
                        className="font-black uppercase tracking-widest w-full sm:w-[120px] flex-shrink-0" style={{ color: fmtCol(tmpl.accent) }}
                        value={t.year} onChange={(v) => updateObjArrayField("timelineItems", i, "year", v)}
+                       pos={slide.layout?.text?.tl_year?.[i]} onPosChange={(p) => updateArrayPos("tl_year", i, p)}
                        baseSize={28} fontSize={slide.customStyles?.tl_year?.[i]?.fontSize} onSizeChange={(s) => updateArraySize("tl_year", i, s)}
                     />
                     <EditableText 
                        className="font-medium w-full" style={{ color: fmtCol(tmpl.body) }}
                        value={t.event} onChange={(v) => updateObjArrayField("timelineItems", i, "event", v)}
+                       pos={slide.layout?.text?.tl_evt?.[i]} onPosChange={(p) => updateArrayPos("tl_evt", i, p)}
                        baseSize={24} fontSize={slide.customStyles?.tl_evt?.[i]?.fontSize} onSizeChange={(s) => updateArraySize("tl_evt", i, s)}
                     />
                   </div>
@@ -697,6 +745,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
             <div className="flex flex-col h-full p-4 sm:p-8 overflow-hidden">
               <EditableText 
                 value={slide.title} onChange={(v) => updateField("title", v)}
+                pos={slide.layout?.text?.title} onPosChange={(p) => updatePos("title", p)}
                 baseSize={48} fontSize={slide.customStyles?.title?.fontSize} onSizeChange={(s) => updateCustomSize("title", s)}
                 component="h2" className="font-black mb-8 border-b-2 pb-4 w-full flex justify-between items-center" style={{ color: tmpl.highlight.startsWith("#") ? tmpl.highlight : `#${tmpl.highlight}`, borderColor: (tmpl.accent.startsWith("#") ? tmpl.accent : `#${tmpl.accent}`) + "33" }} 
               >
@@ -721,6 +770,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
                         <span className="text-2xl font-black mt-1 leading-none transition-transform group-hover:scale-125" style={{ color: fmtCol(tmpl.accent) }}>•</span>
                         <EditableText 
                           value={b} onChange={(v) => updateArrayField("bullets", i, v)}
+                          pos={slide.layout?.text?.bullets?.[i]} onPosChange={(p) => updateArrayPos("bullets", i, p)}
                           baseSize={24} fontSize={slide.customStyles?.bullets?.[i]?.fontSize} onSizeChange={(s) => updateArraySize("bullets", i, s)}
                           className="font-medium leading-relaxed w-full" style={{ color: fmtCol(tmpl.body) }}
                         />
@@ -730,6 +780,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
                     <div className="flex flex-col gap-4">
                       <EditableText 
                         value={slide.subtitle} onChange={(v) => updateField("subtitle", v)}
+                        pos={slide.layout?.text?.subtitle} onPosChange={(p) => updatePos("subtitle", p)}
                         baseSize={28} fontSize={slide.customStyles?.subtitle?.fontSize} onSizeChange={(s) => updateCustomSize("subtitle", s)}
                         className="font-bold opacity-80 w-full" style={{ color: fmtCol(tmpl.sub) }} 
                       />
@@ -743,8 +794,49 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
                   <motion.div 
                     drag 
                     dragMomentum={false} 
-                    style={{ resize: 'both', overflow: 'hidden', minWidth: '160px', minHeight: '120px' }} 
-                    className="w-[45%] cursor-grab active:cursor-grabbing flex flex-col items-center justify-center p-3 rounded-[2rem] border-2 bg-slate-900/60 border-white/10 backdrop-blur-md self-stretch relative group hover:z-50 shadow-2xl hover:border-indigo-500/30 transition-colors"
+                    onDragEnd={(e, info) => {
+                      const layout = slide.layout || {};
+                      onUpdateSlide(currentIndex, {
+                        ...slide,
+                        layout: {
+                          ...layout,
+                          image: {
+                            ...(layout.image || {}),
+                            x: (layout.image?.x || 0) + info.offset.x,
+                            y: (layout.image?.y || 0) + info.offset.y
+                          }
+                        }
+                      });
+                    }}
+                    onMouseUp={(e) => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const layout = slide.layout || {};
+                      // Only update if dimensions actually changed significantly (resize)
+                      if (!layout.image?.width || Math.abs(rect.width - layout.image.width) > 2 || Math.abs(rect.height - layout.image.height) > 2) {
+                        onUpdateSlide(currentIndex, {
+                          ...slide,
+                          layout: {
+                            ...layout,
+                            image: {
+                              ...(layout.image || {}),
+                              width: rect.width,
+                              height: rect.height
+                            }
+                          }
+                        });
+                      }
+                    }}
+                    style={{ 
+                      x: slide.layout?.image?.x || 0,
+                      y: slide.layout?.image?.y || 0,
+                      width: slide.layout?.image?.width || '45%',
+                      height: slide.layout?.image?.height || 'auto',
+                      resize: 'both', 
+                      overflow: 'hidden', 
+                      minWidth: '160px', 
+                      minHeight: '120px' 
+                    }} 
+                    className="cursor-grab active:cursor-grabbing flex flex-col items-center justify-center p-3 rounded-[2rem] border-2 bg-slate-900/60 border-white/10 backdrop-blur-md self-stretch relative group hover:z-50 shadow-2xl hover:border-indigo-500/30 transition-colors"
                   >
                     <div className="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none">
                        <div className="w-16 h-16 border-4 border-slate-600 border-t-indigo-500 rounded-full animate-spin" />
@@ -773,7 +865,26 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
               {/* Extra Custom Text Rendering Section (Full Control) */}
               <div className="absolute bottom-16 left-8 right-8 flex flex-col gap-2 z-20 pointer-events-auto">
                 {(slide.extraText || []).map((txt, i) => (
-                  <div key={i} className="group/extra relative bg-slate-900/40 p-2 rounded-lg border border-white/5 backdrop-blur-sm">
+                  <motion.div 
+                    key={i} 
+                    drag
+                    dragMomentum={false}
+                    onDragEnd={(e, info) => {
+                      const layout = slide.layout || {};
+                      const extraTextLayout = [...(layout.extraText || [])];
+                      const current = extraTextLayout[i] || { x: 0, y: 0 };
+                      extraTextLayout[i] = { x: current.x + info.offset.x, y: current.y + info.offset.y };
+                      onUpdateSlide(currentIndex, {
+                        ...slide,
+                        layout: { ...layout, extraText: extraTextLayout }
+                      });
+                    }}
+                    style={{
+                      x: slide.layout?.extraText?.[i]?.x || 0,
+                      y: slide.layout?.extraText?.[i]?.y || 0,
+                    }}
+                    className="group/extra relative bg-slate-900/40 p-2 rounded-lg border border-white/5 backdrop-blur-sm cursor-grab active:cursor-grabbing"
+                  >
                     <button 
                       onClick={() => removeExtraText(i)}
                       className="absolute -right-2 -top-2 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center opacity-0 group-hover/extra:opacity-100 transition-all shadow-lg"
@@ -787,7 +898,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
                       className="font-medium"
                       style={{ color: fmtCol(tmpl.body) }}
                     />
-                  </div>
+                  </motion.div>
                 ))}
               </div>
 
@@ -805,25 +916,35 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Aippt() {
   // Step states: "input" → "generating" → "preview"
-  const [step, setStep] = useState("input"); // input, selection, generating, preview
+  // Persistence: Initial load from localStorage
+  const getSavedState = () => {
+    try {
+      const saved = localStorage.getItem("ai_ppt_state");
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) { return {}; }
+  };
+  const savedState = getSavedState();
+
+  // Step states: "input" → "generating" → "preview"
+  const [step, setStep] = useState(savedState.slides?.length ? "preview" : "input"); // input, selection, generating, preview
   const [showHistory, setShowHistory] = useState(false);
 
   // Form state
-  const [prompt, setPrompt] = useState("");
+  const [prompt, setPrompt] = useState(savedState.prompt || "");
   const [image, setImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [referenceFile, setReferenceFile] = useState(null);
   const [styleGuide, setStyleGuide] = useState(null);
-  const [template, setTemplate] = useState("modern");
-  const [fontStyle, setFontStyle] = useState("modern");
-  const [slideCount, setSlideCount] = useState(8);
-  const [customColors, setCustomColors] = useState(null); // { bg, accent, title, body, sub, highlight }
+  const [template, setTemplate] = useState(savedState.template || "modern");
+  const [fontStyle, setFontStyle] = useState(savedState.fontStyle || "modern");
+  const [slideCount, setSlideCount] = useState(savedState.slideCount || 8);
+  const [customColors, setCustomColors] = useState(savedState.customColors || null); // { bg, accent, title, body, sub, highlight }
 
   // Result state
-  const [slides, setSlides] = useState([]);
-  const [activeSlide, setActiveSlide] = useState(0);
-  const [showFullPreview, setShowFullPreview] = useState(false);
-  const [lastSavedId, setLastSavedId] = useState(null);
+  const [slides, setSlides] = useState(savedState.slides || []);
+  const [activeSlide, setActiveSlide] = useState(savedState.activeSlide || 0);
+  const [showFullPreview, setShowFullPreview] = useState(savedState.showFullPreview || false);
+  const [lastSavedId, setLastSavedId] = useState(savedState.lastSavedId || null);
 
   // Progress state
   const [genStatus, setGenStatus] = useState({ current: 0, total: 0, msg: "" });
@@ -847,36 +968,17 @@ export default function Aippt() {
       setPrompt(location.state.initialPrompt);
       setStep("input");
       setSlides([]);
+      setLastSavedId(null);
       localStorage.removeItem("ai_ppt_state");
       navigate(location.pathname, { replace: true, state: {} });
-      return;
     }
-
-    const saved = localStorage.getItem("ai_ppt_state");
-    if (saved) {
-      try {
-        const { prompt: p, slides: s, template: t, fontStyle: f, slideCount: sc, activeSlide: aS, showFullPreview: sFP } = JSON.parse(saved);
-        if (p) setPrompt(p);
-        if (s?.length) {
-          setSlides(s);
-          setStep("preview");
-        }
-        if (t) setTemplate(t);
-        if (f) setFontStyle(f);
-        if (sc) setSlideCount(sc);
-        if (aS !== undefined) setActiveSlide(aS);
-        if (sFP !== undefined) setShowFullPreview(sFP);
-      } catch (e) {
-        console.error("Failed to load saved state", e);
-      }
-    }
-  }, []);
+  }, [location.state, navigate]);
 
   // Persistence: Save
   useEffect(() => {
     if (step === "generating") return; // Don't save while generating
     const saveState = () => {
-      const state = { prompt, slides, template, fontStyle, slideCount, activeSlide, showFullPreview };
+      const state = { prompt, slides, template, fontStyle, slideCount, activeSlide, showFullPreview, lastSavedId, customColors };
       localStorage.setItem("ai_ppt_state", JSON.stringify(state));
     };
 
@@ -885,7 +987,7 @@ export default function Aippt() {
     // Force save on page unload
     window.addEventListener("beforeunload", saveState);
     return () => window.removeEventListener("beforeunload", saveState);
-  }, [prompt, slides, template, fontStyle, slideCount, step, activeSlide, showFullPreview]);
+  }, [prompt, slides, template, fontStyle, slideCount, step, activeSlide, showFullPreview, lastSavedId, customColors]);
 
   // ── Image upload ────────────────────────────────────────────────────────────
   const handleImageDrop = useCallback((e) => {
@@ -1041,13 +1143,22 @@ export default function Aippt() {
       if (data.slides && data.slides.length > 0) {
         setSlides(data.slides);
         
-        // Preserve the original file name or title
-        setPrompt(prev => prev || file.name.replace(".pptx", ""));
+        const fileName = file.name.replace(".pptx", "");
+        setPrompt(fileName);
 
         setActiveSlide(0);
         setStep("preview");
         setShowFullPreview(true);
         setError("");
+
+        // Save imported PPT to history so it can be shared
+        savePptHistory({
+          prompt: fileName,
+          slideCount: data.slides.length,
+          template,
+          fontStyle,
+          slides: data.slides
+        }).then(res => setLastSavedId(res._id)).catch(err => console.error("History save failed:", err));
       } else {
         throw new Error("No slides found in this PPTX.");
       }
@@ -1090,10 +1201,25 @@ export default function Aippt() {
     setSharing(true);
     setError("");
     try {
-      if (lastSavedId) {
-        setShareUrl(`${window.location.origin}/share-ppt/${lastSavedId}`);
+      let finalId = lastSavedId;
+      
+      // If not saved yet, save now
+      if (!finalId) {
+        const res = await savePptHistory({
+          prompt,
+          slideCount,
+          template,
+          fontStyle,
+          slides
+        });
+        finalId = res._id;
+        setLastSavedId(finalId);
+      }
+
+      if (finalId) {
+        setShareUrl(`${window.location.origin}/share-ppt/${finalId}`);
       } else {
-        setError("History not saved yet, try regenerating or reloading.");
+        throw new Error("Failed to generate a shareable ID. Please try again.");
       }
     } catch (err) {
       setError("Share failed: " + err.message);
@@ -1515,7 +1641,20 @@ export default function Aippt() {
           <div className="space-y-4">
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 p-6 bg-slate-900/50 border border-slate-800 rounded-3xl">
               {slides.map((slide, i) => (
-                <div key={i} className="group relative flex flex-col gap-3">
+                <motion.div 
+                  key={i} 
+                  drag
+                  dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
+                  dragElastic={0.2}
+                  onDragEnd={(e, info) => {
+                    // Logic to swap slides based on drag distance
+                    if (info.offset.x > 150) handleMoveSlide(i, i + 1);
+                    else if (info.offset.x < -150) handleMoveSlide(i, i - 1);
+                    else if (info.offset.y > 150) handleMoveSlide(i, i + 3); // Approx next row
+                    else if (info.offset.y < -150) handleMoveSlide(i, i - 3); // Approx prev row
+                  }}
+                  className="group relative flex flex-col gap-3 z-10 hover:z-20"
+                >
                   <SlidePreview
                     slide={{ ...slide, onDelete: () => handleDeleteSlide(i) }}
                     template={template}
@@ -1543,7 +1682,7 @@ export default function Aippt() {
                        </button>
                     </div>
                   )}
-                </div>
+                </motion.div>
               ))}
               
               {/* Add button at the very end */}
@@ -1634,6 +1773,7 @@ export default function Aippt() {
             const newArray = [...slides];
             newArray[idx] = updatedSlide;
             setSlides(newArray);
+            setLastSavedId(null); // Mark as dirty/needs re-save for share
             pptBlobRef.current = null; // Re-generate PPT on next download
           }}
           onUpdateAllSlides={(newSlides) => {
