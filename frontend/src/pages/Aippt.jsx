@@ -158,7 +158,7 @@ function SlidePreview({ slide, template, index, isActive, onClick }) {
       {/* Delete button (Full Control) */}
       <button 
         className="absolute top-3 right-3 w-8 h-8 rounded-full bg-red-500/20 hover:bg-red-500 text-red-500 hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all z-20 border border-red-500/30"
-        onClick={(e) => { e.stopPropagation(); slide.onDelete(); }}
+        onClick={(e) => { e.stopPropagation(); slide.onDelete?.(); }}
         title="Delete Slide"
       >
         🗑️
@@ -1485,20 +1485,26 @@ export default function Aippt() {
               <button 
                 className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl border border-slate-700 transition-all text-sm active:scale-95" 
                 onClick={handleReset} 
-                id="reset-ppt-btn"
+                title="Return to input screen"
               >
-                🔄 Start Over
+                🔄 Reset
+              </button>
+              <button 
+                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-amber-600/20 hover:bg-amber-600/40 text-amber-400 font-bold rounded-xl border border-amber-500/30 transition-all text-sm active:scale-95" 
+                onClick={handleGenerate} 
+                title="Generate again with the same prompt"
+              >
+                ♻️ Regenerate
               </button>
               <button 
                 className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 font-bold rounded-xl border border-purple-500/30 transition-all text-sm active:scale-95" 
                 onClick={() => setShowRefineModal(true)} 
               >
-                ✨ Refine Entire PPT
+                ✨ Edit All Slides
               </button>
               <button 
                 className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-xl border border-indigo-500 shadow-lg shadow-indigo-500/20 transition-all text-sm active:scale-95" 
                 onClick={() => setShowFullPreview(true)} 
-                id="fullpreview-btn"
               >
                 👁️ Full Preview
               </button>

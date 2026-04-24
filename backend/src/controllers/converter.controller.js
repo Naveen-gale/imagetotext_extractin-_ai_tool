@@ -294,25 +294,39 @@ export const analyzeReference = async (req, res) => {
 
     try {
         const data = await analyzePPTX(req.file.path);
-        
-        let finalSlides = data.slides;
-        // Upgrade the raw extracted slides into a well-formatted AI presentation
+        const sessionId = req.headers["x-session-id"] || "anonymous";
+
+        // 1. "Learn" from this presentation: Save key content to AiLearning
+        // This helps the AI predict and adapt to the user's existing style/content
         if (data.slides && data.slides.length > 0) {
             try {
-                const { editPPTContent } = await import("../services/groq.service.js");
-                const prompt = "I have extracted raw text from a PowerPoint file. Rebuild these slides into a beautiful, highly-structured presentation array in ChatGPT style. DO NOT change core facts, but fix formatting, use simple language, and provide clear definitions for complex terms. If any slide title is just a number (1, 2, 3...), REGENERATE a descriptive title from the content. Use diverse slide types (two-column, quote, timeline, stats) to make it engaging.";
-                const upgradedSlides = await editPPTContent(prompt, data.slides, "anonymous");
-                if (upgradedSlides && upgradedSlides.length > 0) {
-                    finalSlides = upgradedSlides;
-                }
-            } catch (aiErr) {
-                console.warn("[PPT Import] AI formatting failed, falling back to raw extraction:", aiErr.message);
+                const learningEntries = data.slides.slice(0, 5).map(s => ({
+                    sessionId,
+                    originalValue: "Reference Presentation Style",
+                    correctedValue: `User's Reference Slide - Title: "${s.title}", Content: "${(s.bullets || []).join('; ')}"`,
+                    type: "general",
+                    slideTopic: s.title
+                }));
+                await AiLearning.insertMany(learningEntries);
+                console.log(`[Learning] Imported ${learningEntries.length} reference samples from PPTX.`);
+            } catch (learnErr) {
+                console.warn("[Learning] Failed to save reference samples:", learnErr.message);
             }
         }
 
-        return res.status(200).json({ success: true, data: { style: data.style, slides: finalSlides } });
+        // 2. Return the data "as is" to satisfy "it must ope the existing ppt as it in real ppt"
+        // If the user wants to AI-improve it, they can use the "Edit All Slides" feature.
+        return res.status(200).json({ 
+            success: true, 
+            data: { 
+                style: data.style, 
+                slides: data.slides // Returning raw extraction to prevent text loss
+            } 
+        });
     } catch (error) {
         return res.status(500).json({ success: false, error: error.message });
+    } finally {
+        try { await fs.unlink(req.file.path); } catch {}
     }
 };
 
