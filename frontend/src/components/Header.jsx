@@ -62,8 +62,8 @@ export default function Header() {
       
       {/* Navigation (Desktop) */}
       <div className="hidden md:flex items-center gap-5">
-        <Link to="https://nehal-ppt-ai.onrender.com/" target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-slate-400 hover:text-slate-100 transition-colors">
-          NEHAL PPT AI
+        <Link to="https://promte-ai.vercel.app/" target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-slate-400 hover:text-slate-100 transition-colors">
+          Promte AI
         </Link>
         <Link to="/extract" className="text-sm font-medium text-slate-400 hover:text-slate-100 transition-colors">
           Extract Info
