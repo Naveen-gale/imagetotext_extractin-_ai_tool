@@ -1,11 +1,23 @@
 export function compileSlideToElements(slide, tmpl) {
   if (slide.elements && slide.elements.length > 0) return slide.elements;
 
-  const titleClr = tmpl.title;
-  const bodyClr  = tmpl.body;
-  const hlClr    = tmpl.highlight || tmpl.title;
-  const subClr   = tmpl.sub;
-  const accent   = tmpl.accent;
+  // Ensure background color is always defined
+  const bg = tmpl.bg || "ffffff";
+
+  // Determine if the background is dark to pick safe fallback text colors
+  const _h = bg.replace("#", "");
+  const _r = parseInt(_h.substring(0, 2), 16) || 0;
+  const _g = parseInt(_h.substring(2, 4), 16) || 0;
+  const _b = parseInt(_h.substring(4, 6), 16) || 0;
+  const _isDark = (0.299 * _r + 0.587 * _g + 0.114 * _b) < 128;
+  const safeText = _isDark ? "ffffff" : "1a1a1a";
+  const safeSub  = _isDark ? "cccccc" : "555555";
+
+  const titleClr = tmpl.title     || safeText;
+  const bodyClr  = tmpl.body      || safeText;
+  const hlClr    = tmpl.highlight || tmpl.title || safeText;
+  const subClr   = tmpl.sub       || safeSub;
+  const accent   = tmpl.accent    || (_isDark ? "6366f1" : "3b82f6");
 
   const elements = [];
   const add = (el) => elements.push({ id: Math.random().toString(36).substr(2, 9), ...el });

@@ -149,9 +149,46 @@ export const FONT_STYLES = {
 };
 
 // ─── Helper Functions ─────────────────────────────────────────────────────────
-function col(colorString) {
-  if (!colorString) return "000000";
+
+/**
+ * Determines if a hex color is "dark" (so we can pick a contrasting text color).
+ */
+function isDark(hex) {
+  const h = (hex || "000000").replace("#", "");
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  // Perceived luminance formula
+  return (0.299 * r + 0.587 * g + 0.114 * b) < 128;
+}
+
+/**
+ * Converts a color string to a clean uppercase hex without '#'.
+ * Falls back to `fallback` if the color is falsy.
+ */
+function col(colorString, fallback = "000000") {
+  if (!colorString) return fallback.replace("#", "").toUpperCase();
   return colorString.replace("#", "").toUpperCase();
+}
+
+/**
+ * Ensures a template always has all required fields with safe fallbacks.
+ * This prevents any key being undefined, which would produce black (#000000) text.
+ */
+function resolveTemplate(tmpl) {
+  const bg = tmpl.bg || "ffffff";
+  const darkBg = isDark(bg);
+  // For dark backgrounds, default text should be white; for light, dark.
+  const safeText = darkBg ? "ffffff" : "1a1a1a";
+  const safeSub  = darkBg ? "cccccc" : "555555";
+  return {
+    bg,
+    accent:    tmpl.accent    || (darkBg ? "6366f1" : "3b82f6"),
+    title:     tmpl.title     || safeText,
+    body:      tmpl.body      || safeText,
+    sub:       tmpl.sub       || safeSub,
+    highlight: tmpl.highlight || tmpl.title || safeText,
+  };
 }
 
 export function validateSlides(slides) {
@@ -172,9 +209,11 @@ export function validateSlides(slides) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export async function generatePptx(slides, templateKey = "corporate", fontStyleKey = "modern") {
-  const tmpl  = typeof templateKey === "object"
+  const rawTmpl = typeof templateKey === "object"
     ? templateKey
     : (TEMPLATES[templateKey] || TEMPLATES.corporate);
+  // Always resolve to guarantee no undefined color values
+  const tmpl  = resolveTemplate(rawTmpl);
   const fonts = FONT_STYLES[fontStyleKey] || FONT_STYLES.modern;
 
   const prs = new pptxgen();
@@ -197,13 +236,20 @@ export async function generatePptx(slides, templateKey = "corporate", fontStyleK
         ? slide.elements 
         : compileSlideToElements(slide, tmpl);
 
+    // Determine a safe fallback text color based on the slide background
+    const slideBg = slides[idx]?.bgColor || tmpl.bg;
+    const safeFallbackText = isDark(slideBg) ? "FFFFFF" : "1A1A1A";
+
     elements.forEach(el => {
       // Convert percentages (0-100) to inches (13.33 x 7.5)
       const x = (el.x / 100) * 13.33;
       const y = (el.y / 100) * 7.5;
       const w = (el.w / 100) * 13.33;
       const h = (el.h / 100) * 7.5;
-      const color = col(el.color);
+      // Use the safe fallback so text is never invisible against the slide background
+      const color = el.type === "text"
+        ? col(el.color, safeFallbackText)
+        : col(el.color, tmpl.accent);
       const opacity = el.opacity !== undefined ? (1 - el.opacity) * 100 : 0; // pptxgenjs uses transparency 0-100%
 
       if (el.type === "shape") {

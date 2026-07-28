@@ -24,13 +24,21 @@ const LEARNING_BADGE = (
 // ─── Slide Preview component ─────────────────────────────────────────────────
 function SlidePreview({ slide, template, index, isActive, onClick }) {
   const tmpl = TEMPLATES[template] || TEMPLATES.corporate;
-  const fmtCol = (c) => c ? (c.startsWith("#") ? c : `#${c}`) : "#000000";
+  
+  // Compute whether the background is dark so we can pick a safe text fallback
+  const bgHex = (tmpl.bg || "ffffff").replace("#", "");
+  const _r = parseInt(bgHex.substring(0, 2), 16) || 0;
+  const _g = parseInt(bgHex.substring(2, 4), 16) || 0;
+  const _b = parseInt(bgHex.substring(4, 6), 16) || 0;
+  const _bgIsDark = (0.299 * _r + 0.587 * _g + 0.114 * _b) < 128;
+  const safeTextFallback = _bgIsDark ? "#ffffff" : "#1a1a1a";
+  const fmtCol = (c) => c ? (c.startsWith("#") ? c : `#${c}`) : safeTextFallback;
 
   const renderContent = () => {
-    const accent = `#${tmpl.accent}`;
-    const titleColor = `#${tmpl.highlight || tmpl.title}`;
-    const bodyColor = `#${tmpl.body}`;
-    const bg = `#${tmpl.bg}`;
+    const accent = `#${tmpl.accent || (_bgIsDark ? "6366f1" : "3b82f6")}`;
+    const titleColor = `#${tmpl.highlight || tmpl.title || (_bgIsDark ? "ffffff" : "1a1a1a")}`;
+    const bodyColor = `#${tmpl.body || (_bgIsDark ? "cccccc" : "333333")}`;
+    const bg = `#${tmpl.bg || "ffffff"}`;
 
     if (slide.type === "title") {
       return (
@@ -272,7 +280,14 @@ function SlidePreview({ slide, template, index, isActive, onClick }) {
 function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlides, onClose, onPrev, onNext, template, customColors, fontStyle }) {
   const tmpl = customColors || TEMPLATES[template] || TEMPLATES.corporate;
   const slide = slides[currentIndex];
-  const fmtCol = (c) => c ? (c.startsWith("#") ? c : `#${c}`) : "#000000";
+  // Compute a background-aware safe text fallback
+  const _bh = (tmpl.bg || "ffffff").replace("#", "");
+  const _br = parseInt(_bh.substring(0, 2), 16) || 0;
+  const _bg2 = parseInt(_bh.substring(2, 4), 16) || 0;
+  const _bb = parseInt(_bh.substring(4, 6), 16) || 0;
+  const _fIsDark = (0.299 * _br + 0.587 * _bg2 + 0.114 * _bb) < 128;
+  const fmtColFallback = _fIsDark ? "#ffffff" : "#1a1a1a";
+  const fmtCol = (c) => c ? (c.startsWith("#") ? c : `#${c}`) : fmtColFallback;
   const containerRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
