@@ -1,8 +1,34 @@
 import os
 import joblib
 from flask import Flask, request, jsonify
+from functools import wraps
+import time
 
 app = Flask(__name__)
+
+# Simple in-memory rate limiter (no external dependency)
+_rate_limit_store = {}  # ip -> [timestamps]
+RATE_LIMIT_REQUESTS = 30   # max requests
+RATE_LIMIT_WINDOW = 60     # per 60 seconds
+
+def rate_limit(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        ip = request.remote_addr or "unknown"
+        now = time.time()
+        window_start = now - RATE_LIMIT_WINDOW
+        # Clean old entries
+        _rate_limit_store[ip] = [t for t in _rate_limit_store.get(ip, []) if t > window_start]
+        if len(_rate_limit_store[ip]) >= RATE_LIMIT_REQUESTS:
+            retry_after = int(RATE_LIMIT_WINDOW - (now - _rate_limit_store[ip][0]))
+            resp = jsonify({"error": "Rate limit exceeded. Please wait before retrying.", "retry_after": retry_after})
+            resp.status_code = 429
+            resp.headers["Retry-After"] = str(retry_after)
+            return resp
+        _rate_limit_store[ip].append(now)
+        return f(*args, **kwargs)
+    return decorated
+
 
 # Resolve model path with fallbacks for Render environment
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))

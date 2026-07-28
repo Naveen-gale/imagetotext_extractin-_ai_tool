@@ -502,6 +502,12 @@ export const predictTheme = async (req, res) => {
             body: JSON.stringify({ prompt })
         });
         
+        // Handle rate-limiting from Flask gracefully — fall back to default theme
+        if (response.status === 429) {
+            console.warn("[Theme] Flask API rate-limited (429). Returning default theme.");
+            return res.status(200).json({ success: true, theme: "modern", ml_theme: null, fallback: true });
+        }
+
         if (!response.ok) {
              throw new Error(`Flask API returned ${response.status}`);
         }
@@ -524,7 +530,8 @@ export const predictTheme = async (req, res) => {
         return res.status(200).json({ success: true, theme: themeKey, ml_theme: data.theme });
     } catch (error) {
         console.error("Theme prediction error:", error);
-        return res.status(500).json({ success: false, error: error.message });
+        // Don't crash the user experience — return a safe fallback
+        return res.status(200).json({ success: true, theme: "modern", ml_theme: null, fallback: true });
     }
 };
 
@@ -547,6 +554,12 @@ export const predictStructure = async (req, res) => {
             body: JSON.stringify({ prompt })
         });
         
+        // Handle rate-limiting from Flask gracefully — fall back to default structure
+        if (response.status === 429) {
+            console.warn("[Structure] Flask API rate-limited (429). Returning default structure.");
+            return res.status(200).json({ success: true, structure: "standard", fallback: true });
+        }
+
         if (!response.ok) {
              throw new Error(`Flask API returned ${response.status}`);
         }
@@ -556,6 +569,7 @@ export const predictStructure = async (req, res) => {
         return res.status(200).json({ success: true, structure: data.structure });
     } catch (error) {
         console.error("Structure prediction error:", error);
-        return res.status(500).json({ success: false, error: error.message });
+        // Don't crash the user experience — return a safe fallback
+        return res.status(200).json({ success: true, structure: "standard", fallback: true });
     }
 };
