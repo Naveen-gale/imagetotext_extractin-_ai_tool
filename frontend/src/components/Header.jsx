@@ -51,13 +51,34 @@ export default function Header() {
   return (
     <header className="w-full flex items-center justify-between px-6 py-4 bg-slate-950/80 backdrop-blur-md border-b border-slate-800 sticky top-0 z-50">
       {/* Brand Logo */}
-      <Link to="/" className="flex items-center gap-2 group">
-        <span className="font-bold text-xl tracking-tight text-slate-100 group-hover:text-indigo-400 transition-colors">
-          VisionText
-        </span>
-        <span className="text-[10px] font-bold px-2 py-0.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-md uppercase tracking-wide">
-          AI
-        </span>
+      <Link to="/" className="flex items-center gap-2.5 group">
+        {/* VT Monogram Icon */}
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="34"
+          height="34"
+          viewBox="0 0 48 48"
+          fill="none"
+          className="flex-shrink-0 group-hover:scale-105 transition-transform duration-200"
+        >
+          <defs>
+            <linearGradient id="vtGrad" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#8B5CF6"/>
+              <stop offset="100%" stopColor="#06B6D4"/>
+            </linearGradient>
+          </defs>
+          <rect width="48" height="48" rx="12" fill="#0F172A"/>
+          <text x="24" y="33" textAnchor="middle" fontFamily="Arial, Helvetica, sans-serif" fontWeight="800" fontSize="26" fill="url(#vtGrad)">VT</text>
+        </svg>
+        {/* Brand Name */}
+        <div className="flex items-baseline gap-1.5">
+          <span className="font-bold text-xl tracking-tight text-slate-100 group-hover:text-white transition-colors duration-200">
+            VisionText
+          </span>
+          <span className="text-[10px] font-bold px-1.5 py-0.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-md uppercase tracking-wider">
+            AI
+          </span>
+        </div>
       </Link>
       
       {/* Navigation (Desktop) */}
