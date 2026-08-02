@@ -138,6 +138,16 @@ export const TEMPLATES = {
   },
 };
 
+// ─── Template Layout Hash ─────────────────────────────────────────────────────
+function getLayoutForTemplate(key) {
+  const layouts = ["sidebar", "headerFooter", "split", "modern", "minimal", "diagonal"];
+  let hash = 0;
+  const str = String(key);
+  for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  return layouts[Math.abs(hash) % layouts.length];
+}
+
+
 // ─── Font Styles ──────────────────────────────────────────────────────────────
 export const FONT_STYLES = {
   modern:    { heading: "Calibri",          body: "Calibri" },
@@ -223,13 +233,52 @@ export async function generatePptx(slides, templateKey = "corporate", fontStyleK
   prs.subject = slides[0]?.title || "Presentation";
   prs.title   = slides[0]?.title || "Presentation";
 
+  // Generate Master Slide dynamically
+  const layoutStyle = getLayoutForTemplate(typeof templateKey === "string" ? templateKey : "default");
+  const masterObjects = [];
+  
+  if (layoutStyle === "sidebar") {
+    masterObjects.push({ rect: { x: 0, y: 0, w: 0.5, h: "100%", fill: { color: col(tmpl.accent) } } });
+    masterObjects.push({ rect: { x: 0.6, y: 0, w: 0.05, h: "100%", fill: { color: col(tmpl.accent) }, transparency: 50 } });
+  } else if (layoutStyle === "headerFooter") {
+    masterObjects.push({ rect: { x: 0, y: 0, w: "100%", h: 0.3, fill: { color: col(tmpl.accent) } } });
+    masterObjects.push({ rect: { x: 0, y: 7.2, w: "100%", h: 0.3, fill: { color: col(tmpl.accent) } } });
+  } else if (layoutStyle === "split") {
+    masterObjects.push({ rect: { x: 0, y: 0, w: "100%", h: "40%", fill: { color: col(tmpl.accent) }, transparency: 90 } });
+    masterObjects.push({ rect: { x: 0, y: "40%", w: "100%", h: 0.1, fill: { color: col(tmpl.accent) } } });
+  } else if (layoutStyle === "modern") {
+    masterObjects.push({ ellipse: { x: -1, y: -2, w: 4, h: 4, fill: { color: col(tmpl.accent) }, transparency: 85 } });
+    masterObjects.push({ ellipse: { x: 11, y: 5.5, w: 5, h: 5, fill: { color: col(tmpl.accent) }, transparency: 85 } });
+  } else if (layoutStyle === "diagonal") {
+    masterObjects.push({ polygon: { x: 10, y: 0, w: 3.33, h: 3, points: [{x:0,y:0}, {x:1,y:0}, {x:1,y:1}], fill: { color: col(tmpl.accent) }, transparency: 70 } });
+    masterObjects.push({ polygon: { x: 0, y: 4.5, w: 3, h: 3, points: [{x:0,y:1}, {x:0,y:0}, {x:1,y:1}], fill: { color: col(tmpl.accent) }, transparency: 70 } });
+  } else {
+    // minimal
+    masterObjects.push({ rect: { x: 0, y: 0, w: "100%", h: 0.1, fill: { color: col(tmpl.accent) } } });
+  }
+
+  prs.defineSlideMaster({
+    title: "MASTER_SLIDE",
+    background: { color: col(tmpl.bg) },
+    objects: masterObjects,
+    slideNumber: { x: 12.8, y: 7.1, w: 0.5, h: 0.3, fontSize: 10, color: col(tmpl.sub), align: "right" }
+  });
+
+  const transitions = ["fade", "zoom", "push", "pull", "cover", "uncover", "wipe"];
+  const animations = ["fade", "zoom", "fly", "spin"];
+
   slides.forEach((slide, idx) => {
-    const sl = prs.addSlide();
+    const sl = prs.addSlide({ masterName: "MASTER_SLIDE" });
     const slideNum = idx + 1;
 
-    // Background
-    const bgColor = slide.bgColor ? col(slide.bgColor) : col(tmpl.bg);
-    sl.background = { color: bgColor };
+    // Apply Transition
+    const transType = transitions[idx % transitions.length];
+    sl.transition = { type: transType, speed: "med" };
+
+    // Background override per slide if provided, otherwise uses Master
+    if (slide.bgColor) {
+      sl.background = { color: col(slide.bgColor) };
+    }
 
     // Get absolute elements (compile them if the user didn't edit this slide)
     const elements = slide.elements && slide.elements.length > 0 
@@ -252,17 +301,22 @@ export async function generatePptx(slides, templateKey = "corporate", fontStyleK
         : col(el.color, tmpl.accent);
       const opacity = el.opacity !== undefined ? (1 - el.opacity) * 100 : 0; // pptxgenjs uses transparency 0-100%
 
+      const animType = animations[(idx + elements.indexOf(el)) % animations.length];
+      const animateOpt = { type: animType, duration: 1.2, delay: elements.indexOf(el) * 0.1 };
+
       if (el.type === "shape") {
         sl.addShape(el.shape === "circle" ? prs.ShapeType.ellipse : prs.ShapeType.rect, {
           x, y, w, h,
           fill: { color, transparency: opacity },
-          line: { width: 0 }
+          line: { width: 0 },
+          animate: animateOpt
         });
       } else if (el.type === "image") {
         sl.addImage({
           path: el.src,
           x, y, w, h,
-          sizing: { type: "crop" } // Simulates objectFit: "cover"
+          sizing: { type: "crop" }, // Simulates objectFit: "cover"
+          animate: animateOpt
         });
       } else {
         // Text
@@ -276,21 +330,14 @@ export async function generatePptx(slides, templateKey = "corporate", fontStyleK
           align: el.align || "left",
           valign: "top",
           transparency: opacity,
-          margin: 4 // Give a tiny margin so it doesn't touch the edge of the invisible bounding box
+          margin: 4, // Give a tiny margin so it doesn't touch the edge of the invisible bounding box
+          animate: animateOpt
         });
       }
     });
 
     if (slide.speaker_notes || slide.speakerNotes) {
       sl.addNotes(slide.speaker_notes || slide.speakerNotes);
-    }
-    
-    // Slide Number (if not first slide)
-    if (slideNum > 1) {
-      sl.addText(String(slideNum), {
-        x: 12.8, y: 7.1, w: 0.5, h: 0.3,
-        fontSize: 10, color: col(tmpl.sub), align: "right", transparency: 50
-      });
     }
   });
 

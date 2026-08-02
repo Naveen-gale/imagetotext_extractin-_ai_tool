@@ -1626,10 +1626,15 @@ export default function Aippt() {
               <div className="space-y-4">
                 <label className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">🎨 Template Design</label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-4">
-                  {Object.entries(TEMPLATES).map(([key, tmpl]) => (
-                    <button
+                  {Object.entries(TEMPLATES).map(([key, tmpl], index) => (
+                    <motion.button
                       key={key}
-                      className={`relative flex flex-col p-4 rounded-xl border-2 transition-all overflow-hidden ${template === key ? 'ring-4 ring-purple-500/20' : 'hover:scale-[1.02]'}`}
+                      initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      transition={{ delay: (index % 10) * 0.05, duration: 0.3 }}
+                      whileHover={{ scale: 1.05, y: -2 }}
+                      whileTap={{ scale: 0.95 }}
+                      className={`relative flex flex-col p-4 rounded-xl border-2 overflow-hidden ${template === key ? 'ring-4 ring-purple-500/40 shadow-[0_0_20px_rgba(168,85,247,0.4)]' : ''}`}
                       style={{
                         borderColor: template === key ? `#${tmpl.accent}` : `#1e293b`,
                         background: `#${tmpl.bg}`
@@ -1638,10 +1643,10 @@ export default function Aippt() {
                     >
                       <div className="flex items-center gap-2 mb-2">
                         <span className="text-lg">{tmpl.emoji}</span>
-                        <span className="text-[10px] font-black uppercase tracking-widest text-white">{tmpl.name}</span>
+                        <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: `#${tmpl.title}` }}>{tmpl.name}</span>
                       </div>
-                      <div className="w-full h-1" style={{ background: `#${tmpl.accent}` }} />
-                    </button>
+                      <div className="absolute bottom-0 left-0 w-full h-1" style={{ background: `#${tmpl.accent}` }} />
+                    </motion.button>
                   ))}
                 </div>
               </div>
