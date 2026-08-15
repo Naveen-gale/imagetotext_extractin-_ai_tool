@@ -407,12 +407,12 @@ export async function uploadRagFiles({ referenceFile, imageFile }) {
 }
 
 /**
- * Generate a full presentation using the Flask RAG + Groq pipeline.
- * Returns { slides: [...] } — same format as the Node.js backend.
+ * Generate outline using the Flask RAG + Groq pipeline.
+ * Returns { outline: [...] }
  */
-export async function generatePptWithRag({ prompt, slideCount = 8, styleGuide = null, structure = null }) {
+export async function ragGenerateOutline(prompt, slideCount = 8, styleGuide = null, structure = null) {
   const sessionId = getSessionId();
-  const res = await fetch(`${FLASK_BASE}/rag/generate-ppt`, {
+  const res = await fetch(`${FLASK_BASE}/rag/generate-outline`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-session-id": sessionId },
     body: JSON.stringify({
@@ -424,8 +424,29 @@ export async function generatePptWithRag({ prompt, slideCount = 8, styleGuide = 
       top_k: 6,
     }),
   });
-  const data = await handleResponse(res, "RAG PPT Generation");
-  return data.slides;
+  const data = await handleResponse(res, "RAG Outline Generation");
+  return data.outline;
+}
+
+/**
+ * Generate a single slide using the Flask RAG + Groq pipeline.
+ * Returns the slide dict.
+ */
+export async function ragGenerateSlide(topic, outline, slideIndex, styleGuide = null) {
+  const sessionId = getSessionId();
+  const res = await fetch(`${FLASK_BASE}/rag/generate-slide`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-session-id": sessionId },
+    body: JSON.stringify({
+      topic,
+      outline,
+      slide_index: slideIndex,
+      session_id: sessionId,
+      style_guide: styleGuide,
+    }),
+  });
+  const data = await handleResponse(res, "RAG Slide Generation");
+  return data.slide;
 }
 
 /**

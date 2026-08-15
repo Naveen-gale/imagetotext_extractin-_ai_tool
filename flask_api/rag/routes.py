@@ -13,6 +13,8 @@ import os
 import json
 from flask import Blueprint, request, jsonify
 
+import base64
+from imagekitio import ImageKit
 from .extractor import extract_pptx_text, extract_image_text
 from .chunker import chunk_multiple_sources
 from .embedder import embed_chunks, embed_query, cosine_search, format_rag_context
@@ -25,24 +27,17 @@ from .llm import (
 
 rag_bp = Blueprint("rag", __name__, url_prefix="/rag")
 
-# ─── CORS helper ─────────────────────────────────────────────────────────────
-def _cors_headers(resp):
-    resp.headers["Access-Control-Allow-Origin"] = "*"
-    resp.headers["Access-Control-Allow-Headers"] = "Content-Type, x-session-id, Authorization"
-    resp.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS, DELETE"
-    return resp
-
-
-@rag_bp.after_request
-def after_request(response):
-    return _cors_headers(response)
-
-
-@rag_bp.route("/<path:path>", methods=["OPTIONS"])
-@rag_bp.route("/", methods=["OPTIONS"])
-def handle_options(path=""):
-    resp = jsonify({"ok": True})
-    return _cors_headers(resp)
+# ─── Initialize ImageKit ──────────────────────────────────────────────────────
+imagekit = None
+try:
+    if os.getenv("IMAGEKIT_PUBLIC_KEY"):
+        imagekit = ImageKit(
+            public_key=os.getenv("IMAGEKIT_PUBLIC_KEY"),
+            private_key=os.getenv("IMAGEKIT_PRIVATE_KEY"),
+            url_endpoint=os.getenv("IMAGEKIT_URL_ENDPOINT")
+        )
+except Exception as e:
+    print(f"Failed to initialize ImageKit: {e}")
 
 
 # ─── /rag/upload ─────────────────────────────────────────────────────────────
@@ -52,6 +47,7 @@ def rag_upload():
     """
     Upload reference PPTX and/or image files.
     Extracts text, chunks it, embeds it, and stores it for the session.
+    Also uploads original files to ImageKit for persistence.
     
     Form data:
         reference (file, optional): .pptx reference file
@@ -59,7 +55,7 @@ def rag_upload():
         session_id (str):           user session identifier
     
     Returns:
-        { success, session_id, chunk_count, sources }
+        { success, session_id, chunk_count, sources, urls }
     """
     session_id = request.form.get("session_id") or request.headers.get("x-session-id", "default")
 
@@ -67,30 +63,51 @@ def rag_upload():
         return jsonify({"error": "session_id is required"}), 400
 
     sources = {}
+    urls = {}
 
-    # ── Extract PPTX ──────────────────────────────────────────────────────────
+    # ── Extract & Upload PPTX ─────────────────────────────────────────────────
     reference_file = request.files.get("reference")
     if reference_file and reference_file.filename:
         filename = reference_file.filename.lower()
         if filename.endswith(".pptx") or filename.endswith(".ppt"):
             try:
                 pptx_bytes = reference_file.read()
+                
+                # Upload to ImageKit
+                if imagekit:
+                    upload_res = imagekit.upload(
+                        file=base64.b64encode(pptx_bytes).decode('utf-8'),
+                        file_name=reference_file.filename,
+                        folder="/rag_references/"
+                    )
+                    urls["pptx"] = upload_res.url
+                
                 pptx_text = extract_pptx_text(pptx_bytes)
                 if pptx_text.strip():
                     sources["pptx"] = pptx_text
                     print(f"[RAG Upload] Extracted {len(pptx_text)} chars from PPTX")
             except Exception as e:
-                print(f"[RAG Upload] PPTX extraction error: {e}")
+                print(f"[RAG Upload] PPTX error: {e}")
         else:
             return jsonify({"error": "Reference file must be .pptx or .ppt"}), 400
 
-    # ── Extract Image ─────────────────────────────────────────────────────────
+    # ── Extract & Upload Image ────────────────────────────────────────────────
     image_file = request.files.get("image")
     if image_file and image_file.filename:
         try:
             img_bytes = image_file.read()
-            # Determine MIME type
             fname = image_file.filename.lower()
+            
+            # Upload to ImageKit
+            if imagekit:
+                upload_res = imagekit.upload(
+                    file=base64.b64encode(img_bytes).decode('utf-8'),
+                    file_name=image_file.filename,
+                    folder="/rag_references/"
+                )
+                urls["image"] = upload_res.url
+                
+            # Determine MIME type
             if fname.endswith(".png"):
                 mime = "image/png"
             elif fname.endswith(".webp"):
@@ -105,7 +122,7 @@ def rag_upload():
                 sources["image"] = img_text
                 print(f"[RAG Upload] Extracted {len(img_text)} chars from image")
         except Exception as e:
-            print(f"[RAG Upload] Image extraction error: {e}")
+            print(f"[RAG Upload] Image error: {e}")
 
     if not sources:
         return jsonify({
@@ -113,6 +130,7 @@ def rag_upload():
             "session_id": session_id,
             "chunk_count": 0,
             "sources": [],
+            "urls": urls,
             "message": "No content extracted. Proceeding without RAG context."
         })
 
@@ -128,6 +146,7 @@ def rag_upload():
         "session_id": session_id,
         "chunk_count": len(all_chunks),
         "sources": list(sources.keys()),
+        "urls": urls,
         "message": f"RAG indexed {len(all_chunks)} chunks from {list(sources.keys())}"
     })
 
@@ -183,14 +202,14 @@ def rag_query():
     })
 
 
-# ─── /rag/generate-ppt ───────────────────────────────────────────────────────
+# ─── /rag/generate-outline ────────────────────────────────────────────────────
 
-@rag_bp.route("/generate-ppt", methods=["POST"])
-def rag_generate_ppt():
+@rag_bp.route("/generate-outline", methods=["POST", "OPTIONS"])
+def rag_generate_outline():
+    if request.method == "OPTIONS":
+        return jsonify({"ok": True})
     """
-    Generate a full PPT using Groq with RAG context injected.
-    This is the main endpoint called by the frontend instead of the Node.js backend
-    when RAG data is available.
+    Generate an outline for the PPT using Groq with RAG context injected.
     
     JSON body:
         prompt (str):          presentation topic/description
@@ -201,7 +220,7 @@ def rag_generate_ppt():
         top_k (int):           chunks to retrieve (default 6)
     
     Returns:
-        { slides: [...] }  — same format as Node.js backend
+        { outline: [...] }
     """
     data = request.get_json(silent=True) or {}
     prompt = data.get("prompt", "").strip()
@@ -223,7 +242,7 @@ def rag_generate_ppt():
             query_vec = embed_query(prompt)
             retrieved = cosine_search(query_vec, vectors, chunks, top_k=top_k)
             rag_context = format_rag_context(retrieved)
-            print(f"[RAG Generate] Retrieved {len(retrieved)} chunks for session '{session_id}'")
+            print(f"[RAG Outline] Retrieved {len(retrieved)} chunks for session '{session_id}'")
 
     # ── Generate Outline ──────────────────────────────────────────────────────
     try:
@@ -234,48 +253,70 @@ def rag_generate_ppt():
             structure=structure,
             rag_context=rag_context
         )
+        return jsonify({"success": True, "outline": outline, "has_rag": bool(rag_context)})
     except Exception as e:
         return jsonify({"error": f"Outline generation failed: {str(e)}"}), 500
 
-    # ── Generate Each Slide ───────────────────────────────────────────────────
-    slides = []
-    for i, outline_item in enumerate(outline):
-        # Re-query RAG for each slide to get the most relevant chunks for that slide
-        slide_rag_context = rag_context
-        if session_id and rag_context:
-            slide_title = outline_item.get("title", "")
-            slide_query = f"{prompt} {slide_title}"
-            session_data = get_session(session_id)
-            if session_data:
-                chunks, vectors = session_data
-                q_vec = embed_query(slide_query)
-                retrieved = cosine_search(q_vec, vectors, chunks, top_k=4)
-                slide_rag_context = format_rag_context(retrieved)
 
-        try:
-            slide = generate_slide_with_groq(
-                topic=prompt,
-                outline=outline,
-                slide_index=i,
-                style_guide=style_guide,
-                rag_context=slide_rag_context
-            )
-            slides.append(slide)
-        except Exception as e:
-            print(f"[RAG Generate] Slide {i+1} error: {e}")
-            # Fallback minimal slide
-            slides.append({
-                "type": outline_item.get("type", "content"),
-                "title": outline_item.get("title", f"Slide {i+1}"),
-                "bullets": [outline_item.get("description", "Key content.")]
-            })
+# ─── /rag/generate-slide ──────────────────────────────────────────────────────
 
-    return jsonify({
-        "success": True,
-        "slides": slides,
-        "slide_count": len(slides),
-        "has_rag": bool(rag_context)
-    })
+@rag_bp.route("/generate-slide", methods=["POST", "OPTIONS"])
+def rag_generate_slide():
+    if request.method == "OPTIONS":
+        return jsonify({"ok": True})
+    """
+    Generate a single slide using Groq with RAG context.
+    
+    JSON body:
+        topic (str):           presentation topic
+        outline (list):        the full outline array
+        slide_index (int):     index of the slide to generate
+        session_id (str):      user session (for RAG lookup)
+        style_guide (dict):    optional style reference
+    
+    Returns:
+        { slide: {...} }
+    """
+    data = request.get_json(silent=True) or {}
+    topic = data.get("topic", "").strip()
+    outline = data.get("outline", [])
+    slide_index = int(data.get("slide_index", 0))
+    session_id = data.get("session_id") or request.headers.get("x-session-id", "")
+    style_guide = data.get("style_guide")
+
+    if not topic or not outline:
+        return jsonify({"error": "topic and outline are required"}), 400
+
+    # ── Re-query RAG Context for this specific slide ──────────────────────────
+    rag_context = ""
+    if session_id and slide_index < len(outline):
+        slide_title = outline[slide_index].get("title", "")
+        slide_query = f"{topic} {slide_title}"
+        session_data = get_session(session_id)
+        if session_data:
+            chunks, vectors = session_data
+            q_vec = embed_query(slide_query)
+            retrieved = cosine_search(q_vec, vectors, chunks, top_k=4)
+            rag_context = format_rag_context(retrieved)
+
+    try:
+        slide = generate_slide_with_groq(
+            topic=topic,
+            outline=outline,
+            slide_index=slide_index,
+            style_guide=style_guide,
+            rag_context=rag_context
+        )
+        return jsonify({"success": True, "slide": slide, "has_rag": bool(rag_context)})
+    except Exception as e:
+        print(f"[RAG Slide {slide_index}] Error: {e}")
+        # Fallback minimal slide
+        fallback = {
+            "type": outline[slide_index].get("type", "content") if slide_index < len(outline) else "content",
+            "title": outline[slide_index].get("title", f"Slide {slide_index+1}") if slide_index < len(outline) else "Error",
+            "bullets": [outline[slide_index].get("description", "Error generating slide content.")] if slide_index < len(outline) else ["Error"]
+        }
+        return jsonify({"success": False, "slide": fallback, "has_rag": bool(rag_context)})
 
 
 # ─── /rag/edit-slide ─────────────────────────────────────────────────────────

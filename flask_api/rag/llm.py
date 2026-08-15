@@ -99,10 +99,20 @@ Use it to:
     system_prompt = f"""You are an expert presentation architect. Create a concise, professional outline for a PowerPoint presentation.
 {style_hint}{structure_hint}{rag_section}
 
-Return ONLY a valid JSON array. Each element must have these exact fields:
-- "title": string (slide title)
-- "type": one of [title, section, agenda, content, two-column, stats, timeline, quote, process, swot, comparison, thank-you]
-- "description": string (brief description of what this slide covers)
+STRICT INSTRUCTIONS:
+You MUST return ONLY a valid JSON object. Do not include markdown code blocks, formatting, explanations, or any other text. 
+Output exactly this JSON format:
+{{
+  "outline": [
+    {{
+      "title": "Slide Title",
+      "type": "content",
+      "description": "What this slide covers"
+    }}
+  ]
+}}
+
+Valid "type" values: [title, section, agenda, content, two-column, stats, timeline, quote, process, swot, comparison, thank-you]
 
 Rules:
 - First slide must be type "title"
@@ -122,7 +132,7 @@ Rules:
         ],
         max_tokens=2000,
         temperature=0.7,
-        response_format={"type": "json_object"} if slide_count <= 15 else None
+        response_format={"type": "json_object"}
     )
 
     raw = response.choices[0].message.content.strip()
@@ -140,7 +150,7 @@ Rules:
         
         return outline
     except Exception as e:
-        raise RuntimeError(f"Outline generation failed: {e}. Raw: {raw[:200]}")
+        raise RuntimeError(f"Outline generation failed: {e}. Raw: {raw[:300]}")
 
 
 # ─── Single Slide Generation ──────────────────────────────────────────────────
@@ -195,10 +205,12 @@ Reference material (use specific facts, terms, and data from this):
     )
 
     system_prompt = f"""You are an expert presentation content writer. Generate rich, professional slide content.
-Return ONLY valid JSON matching this schema exactly:
+STRICT INSTRUCTIONS:
+You MUST return ONLY a valid JSON object matching this schema exactly:
 {schema}
 
 Rules:
+- Do not include markdown code blocks, formatting, or any other text.
 - Use professional, concise language
 - Bullets should be 8-15 words each (not too short, not too long)  
 - Stats must have real-looking values (percentages, numbers, multipliers)
@@ -215,7 +227,7 @@ Now generate slide {slide_index + 1}: "{slide_title}"
 Description: {slide_desc}
 Type: {slide_type}
 
-Return only the JSON object for this slide."""
+Return ONLY the valid JSON object for this slide. No markdown."""
 
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",

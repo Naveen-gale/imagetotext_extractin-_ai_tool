@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { History as HistoryIcon, Rocket, Sparkles, Presentation } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { generatePptData, uploadPptFile, savePptHistory, generatePptOutline, generatePptSlide, analyzeReferencePpt, generateInsertedSlideData, saveAiCorrection, predictTheme, predictStructure, uploadRagFiles, generatePptWithRag, ragEditSlide } from "../utils/api";
+import { generatePptData, uploadPptFile, savePptHistory, generatePptOutline, generatePptSlide, analyzeReferencePpt, generateInsertedSlideData, saveAiCorrection, predictTheme, predictStructure, uploadRagFiles, ragEditSlide } from "../utils/api";
 import { generatePptx, validateSlides, TEMPLATES, FONT_STYLES } from "../utils/pptGenerator";
 import EditableText from "../components/EditableText";
 import HistoryModal from "../components/modals/HistoryModal";
@@ -689,7 +689,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
               exit={{ x: -300, opacity: 0 }}
               transition={{ duration: 0.4, ease: "easeInOut" }}
               className="relative w-full max-w-[100vw] sm:max-w-[98vw] aspect-[16/9] max-h-[100vh] sm:max-h-[90vh] shadow-[0_0_100px_rgba(0,0,0,0.8)] sm:rounded-3xl overflow-hidden ring-1 ring-white/10 flex flex-col"
-              style={{ background: fmtCol(tmpl.bg) }}
+              style={{ background: fmtCol(slide.bgColor || tmpl.bg) }}
             >
               <div className="absolute top-0 left-0 w-full h-2 z-10" style={{ background: fmtCol(tmpl.accent) }} />
 
@@ -1239,63 +1239,89 @@ export default function Aippt() {
         // Step 1: Upload files to Flask RAG pipeline
         setGenStatus({ current: 0, total: 3, msg: "📂 Indexing your reference files with RAG..." });
         try {
+          const { uploadRagFiles, ragGenerateOutline, ragGenerateSlide, uploadPptFile } = await import("../utils/api");
           const ragResult = await uploadRagFiles({
             referenceFile: referenceFile || null,
             imageFile: image || null,
           });
           console.log(`[RAG] Indexed ${ragResult.chunk_count} chunks from ${(ragResult.sources || []).join(", ")}`);
-        } catch (ragUploadErr) {
-          console.warn("[RAG] Upload failed, proceeding without RAG:", ragUploadErr.message);
-          // Don't abort — fall through to RAG generation with empty context
-        }
-
-        // Step 2: Predict structure (same as normal path)
-        let finalStructure = overrideStructure || structure;
-        if (!finalStructure) {
-          setGenStatus({ current: 1, total: 3, msg: "🧠 Predicting optimal structure..." });
-          try {
-            finalStructure = await predictStructure(prompt);
-          } catch {
-            finalStructure = "Standard";
+          
+          // Step 2: Predict structure (same as normal path)
+          let finalStructure = overrideStructure || structure;
+          if (!finalStructure) {
+            setGenStatus({ current: 1, total: 3, msg: "🧠 Predicting optimal structure..." });
+            try {
+              finalStructure = await predictStructure(prompt);
+            } catch {
+              finalStructure = "Standard";
+            }
           }
-        }
 
-        // Step 3: Generate full PPT with RAG + Groq (single call)
-        setGenStatus({ current: 2, total: 3, msg: "✨ Generating presentation with RAG context..." });
-        const generatedSlides = await generatePptWithRag({
-          prompt,
-          slideCount: slideCount || 8,
-          styleGuide: styleGuide || null,
-          structure: finalStructure,
-        });
+          // Step 3: Generate Outline with RAG
+          setGenStatus({ current: 0, total: slideCount || 8, msg: "Architecting presentation outline with RAG..." });
+          const outline = await ragGenerateOutline(prompt, slideCount || 8, styleGuide, finalStructure);
+          
+          if (!outline?.length) throw new Error("AI failed to create an outline using RAG. Please try again.");
 
-        if (!generatedSlides || generatedSlides.length === 0) {
-          throw new Error("RAG generation returned empty slides. Please try again.");
-        }
+          // Step 4: Generate Slides one-by-one with RAG
+          const generatedSlides = [];
+          const totalSteps = outline.length;
+          
+          let contextImageUrl = null;
+          if (image) {
+             setGenStatus({ current: 0, total: totalSteps, msg: "Uploading context image..." });
+             try {
+                const { uploadImageFile } = await import("../utils/api");
+                contextImageUrl = await uploadImageFile(image);
+             } catch (e) {
+                console.warn("Failed to upload context image", e);
+             }
+          }
 
-        setGenStatus({ current: 3, total: 3, msg: "✅ Presentation ready!" });
-        setSlides(generatedSlides);
-        setActiveSlide(0);
-        setStep("preview");
-        setShowFullPreview(true);
+          for (let i = 0; i < totalSteps; i++) {
+            setGenStatus({ current: i + 1, total: totalSteps, msg: `Crafting slide ${i+1}: ${outline[i].title}...` });
+            
+            const slide = await ragGenerateSlide(prompt, outline, i, styleGuide);
+            
+            if (i === 0 && contextImageUrl) {
+                slide.image = contextImageUrl;
+            }
 
-        savePptHistory({
-          prompt,
-          slideCount: generatedSlides.length,
-          template,
-          fontStyle,
-          slides: generatedSlides
-        }).then(res => setLastSavedId(res._id)).catch(err => console.error("History save failed:", err));
+            generatedSlides.push(slide);
+            setSlides([...generatedSlides]); // Update UI live
 
-        // Auto-upload PPT blob
-        try {
-          const tempBlob = await generatePptx(generatedSlides, customColors || template, fontStyle);
-          uploadPptFile(tempBlob, "testing_auto_gen.pptx").catch(e => console.warn("Auto upload failed", e));
+            // 4.5-second delay to absolutely prevent hitting 15 Requests-Per-Minute Gemini/Groq limits
+            if (i < totalSteps - 1) {
+              await new Promise(r => setTimeout(r, 4500));
+            }
+          }
+
+          setGenStatus({ current: totalSteps, total: totalSteps, msg: "✅ Presentation ready!" });
+          setSlides(generatedSlides);
+          setActiveSlide(0);
+          setStep("preview");
+          setShowFullPreview(true);
+
+          savePptHistory({
+            prompt,
+            slideCount: generatedSlides.length,
+            template,
+            fontStyle,
+            slides: generatedSlides
+          }).then(res => setLastSavedId(res._id)).catch(err => console.error("History save failed:", err));
+
+          // Auto-upload PPT blob
+          try {
+            const tempBlob = await generatePptx(generatedSlides, customColors || template, fontStyle);
+            uploadPptFile(tempBlob, "testing_auto_gen.pptx").catch(e => console.warn("Auto upload failed", e));
+          } catch (err) {
+            console.warn("Failed to generate test PPT automatically", err);
+          }
+
+          return; // Done with RAG path
         } catch (err) {
-          console.warn("Failed to generate test PPT automatically", err);
+          throw err;
         }
-
-        return; // Done with RAG path
       }
 
       // ── NORMAL PATH: no reference files uploaded ───────────────────────────
@@ -2112,52 +2138,22 @@ export default function Aippt() {
         document.body
       )}
 
-      {/* ── STEP 3: Preview & Export ── */}
+      {/* ── STEP 3: Preview & Export (Side-by-Side) ── */}
       {step === "preview" && slides.length > 0 && (
-        <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl">
-            <div>
-              <h2 className="text-2xl sm:text-3xl font-black text-white flex items-center gap-3">
-                <span className="text-4xl">🎉</span> Your Presentation is Ready!
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 h-[calc(100vh-8rem)] min-h-[600px] flex flex-col md:flex-row gap-6 bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-6 shadow-xl">
+          
+          {/* Left Column: Thumbnails */}
+          <div className="w-full md:w-64 lg:w-72 flex-none flex flex-col gap-4">
+            <div className="flex-none">
+              <h2 className="text-xl font-black text-white flex items-center gap-2">
+                <span>🎉</span> {slides.length} Slides
               </h2>
-              <p className="text-slate-400 font-bold uppercase tracking-widest text-xs mt-2 ml-1">
-                {slides.length} slides generated · {TEMPLATES[template]?.name} theme · {fontStyle} font
+              <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mt-1">
+                {TEMPLATES[template]?.name} · {fontStyle}
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-              <button 
-                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl border border-slate-700 transition-all text-sm active:scale-95" 
-                onClick={handleReset} 
-                title="Return to input screen"
-              >
-                🔄 Reset
-              </button>
-              <button 
-                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-amber-600/20 hover:bg-amber-600/40 text-amber-400 font-bold rounded-xl border border-amber-500/30 transition-all text-sm active:scale-95" 
-                onClick={handleGenerate} 
-                title="Generate again with the same prompt"
-              >
-                ♻️ Regenerate
-              </button>
-              <button 
-                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 font-bold rounded-xl border border-purple-500/30 transition-all text-sm active:scale-95" 
-                onClick={() => setShowRefineModal(true)} 
-              >
-                ✨ Edit All Slides
-              </button>
-              <button 
-                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-xl border border-indigo-500 shadow-lg shadow-indigo-500/20 transition-all text-sm active:scale-95" 
-                onClick={() => setShowFullPreview(true)} 
-              >
-                👁️ Full Preview
-              </button>
-            </div>
-          </div>
-
-          {/* Slide Grid with inter-slide buttons */}
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 p-6 bg-slate-900/50 border border-slate-800 rounded-3xl">
+            
+            <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-4 pr-2 pb-4">
               {slides.map((slide, i) => (
                 <motion.div 
                   key={i} 
@@ -2165,127 +2161,135 @@ export default function Aippt() {
                   dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
                   dragElastic={0.2}
                   onDragEnd={(e, info) => {
-                    // Logic to swap slides based on drag distance
-                    if (info.offset.x > 150) handleMoveSlide(i, i + 1);
-                    else if (info.offset.x < -150) handleMoveSlide(i, i - 1);
-                    else if (info.offset.y > 150) handleMoveSlide(i, i + 3); // Approx next row
-                    else if (info.offset.y < -150) handleMoveSlide(i, i - 3); // Approx prev row
+                    if (info.offset.y > 50) handleMoveSlide(i, i + 1);
+                    else if (info.offset.y < -50) handleMoveSlide(i, i - 1);
                   }}
-                  className="group relative flex flex-col gap-3 z-10 hover:z-20"
+                  className={`group relative flex flex-col gap-2 rounded-xl border-2 transition-all cursor-pointer ${activeSlide === i ? 'border-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.3)] bg-slate-950/80' : 'border-slate-800 hover:border-purple-500/50 bg-slate-900/50'}`}
+                  onClick={() => setActiveSlide(i)}
                 >
-                  <SlidePreview
-                    slide={{ ...slide, onDelete: () => handleDeleteSlide(i) }}
-                    template={template}
-                    customColors={customColors}
-                    index={i}
-                    isActive={activeSlide === i}
-                    onClick={() => { setActiveSlide(i); setShowFullPreview(true); }}
-                  />
-                  
-                  {/* Reorder + Duplicate controls */}
-                  <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => handleMoveSlide(i, i - 1)} className="p-1 px-2 bg-slate-800 rounded-md text-[10px] text-slate-400 hover:text-white" disabled={i === 0} title="Move left">←</button>
-                    <button onClick={() => handleDuplicateSlide(i)} className="p-1 px-2 bg-indigo-800/50 rounded-md text-[10px] text-indigo-400 hover:text-white" title="Duplicate slide">⧉</button>
-                    <button onClick={() => handleDeleteSlide(i)} className="p-1 px-2 bg-red-900/30 rounded-md text-[10px] text-red-400 hover:text-white" title="Delete slide">✕</button>
-                    <button onClick={() => handleMoveSlide(i, i + 1)} className="p-1 px-2 bg-slate-800 rounded-md text-[10px] text-slate-400 hover:text-white" disabled={i === slides.length - 1} title="Move right">→</button>
+                  <div className="relative pointer-events-none p-1">
+                    <SlidePreview
+                      slide={{ ...slide }}
+                      template={template}
+                      customColors={customColors}
+                      index={i}
+                      isActive={activeSlide === i}
+                    />
                   </div>
-
-                  {/* Add button between items */}
-                  {i < slides.length - 1 && (
-                    <div className="absolute -right-[1.5rem] top-1/2 -translate-y-1/2 z-30 opacity-0 group-hover:opacity-100 transition-opacity">
-                       <button 
-                        onClick={() => handleInsertSlide(i + 1)}
-                        className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center hover:scale-110 shadow-lg border-2 border-slate-900"
-                        title="Add slide here"
-                       >
-                        +
-                       </button>
-                    </div>
-                  )}
+                  
+                  {/* Reorder + Duplicate controls overlay */}
+                  <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900/80 backdrop-blur rounded-lg p-1 z-20 shadow-lg border border-slate-800">
+                    <button onClick={(e) => { e.stopPropagation(); handleMoveSlide(i, i - 1); }} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white" disabled={i === 0} title="Move Up">↑</button>
+                    <button onClick={(e) => { e.stopPropagation(); handleDuplicateSlide(i); }} className="p-1 hover:bg-slate-800 rounded text-indigo-400 hover:text-white" title="Duplicate">⧉</button>
+                    <button onClick={(e) => { e.stopPropagation(); handleDeleteSlide(i); }} className="p-1 hover:bg-slate-800 rounded text-red-400 hover:text-white" title="Delete">✕</button>
+                    <button onClick={(e) => { e.stopPropagation(); handleMoveSlide(i, i + 1); }} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white" disabled={i === slides.length - 1} title="Move Down">↓</button>
+                  </div>
+                  <div className="absolute -left-2 top-1/2 -translate-y-1/2 bg-slate-950 border border-slate-800 text-slate-500 text-[9px] font-black w-5 h-5 flex items-center justify-center rounded-full z-10 shadow-lg">
+                    {i + 1}
+                  </div>
                 </motion.div>
               ))}
               
-              {/* Add button at the very end */}
               <button 
                 onClick={() => handleInsertSlide(slides.length)}
-                className="w-full aspect-video border-2 border-dashed border-slate-800 rounded-xl flex items-center justify-center text-slate-500 hover:text-indigo-400 hover:border-indigo-500/50 transition-all font-black text-sm group"
+                className="w-full aspect-video border-2 border-dashed border-slate-700 hover:border-indigo-500/50 bg-slate-950/30 hover:bg-indigo-500/5 rounded-xl flex flex-col items-center justify-center text-slate-500 hover:text-indigo-400 transition-all font-black text-[10px] group uppercase tracking-widest mt-2"
               >
-                <span className="group-hover:scale-110 transition-transform">+ Add Final Slide</span>
+                <span className="text-xl mb-1 group-hover:scale-110 transition-transform">+</span>
+                Add Slide
               </button>
             </div>
           </div>
 
-          {/* Selected slide detail */}
-          <div className="flex items-center gap-3 text-sm p-4 bg-slate-950 border border-slate-800 rounded-xl justify-center font-bold">
-            <span className="text-slate-500 uppercase tracking-widest text-xs">Currently viewing:</span>
-            <span className="text-white bg-slate-800 px-3 py-1 rounded-md">{slides[activeSlide]?.title}</span>
-            <span className="text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-md text-xs uppercase tracking-widest border border-indigo-500/20">[{slides[activeSlide]?.type}]</span>
-          </div>
+          {/* Right Column: Main Stage */}
+          <div className="flex-1 flex flex-col min-w-0 bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden relative">
+            
+            {/* Top Action Bar */}
+            <div className="flex-none p-4 border-b border-slate-800 bg-slate-900/50 flex flex-wrap items-center justify-between gap-3 overflow-x-auto">
+              <div className="flex items-center gap-2">
+                <button 
+                  className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-lg border border-slate-700 transition-all text-xs active:scale-95 whitespace-nowrap" 
+                  onClick={handleReset} title="Return to input screen"
+                >
+                  🔄 Reset
+                </button>
+                <button 
+                  className="flex items-center gap-2 px-3 py-2 bg-amber-600/20 hover:bg-amber-600/40 text-amber-400 font-bold rounded-lg border border-amber-500/30 transition-all text-xs active:scale-95 whitespace-nowrap" 
+                  onClick={handleGenerate} title="Regenerate all"
+                >
+                  ♻️ Regen
+                </button>
+                <button 
+                  className="flex items-center gap-2 px-3 py-2 bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 font-bold rounded-lg border border-purple-500/30 transition-all text-xs active:scale-95 whitespace-nowrap" 
+                  onClick={() => setShowRefineModal(true)} title="AI Edit All"
+                >
+                  ✨ Edit All
+                </button>
+              </div>
 
-          {/* Export Actions */}
-          <div className="bg-slate-900 border border-slate-800 rounded-[2.5rem] p-8 sm:p-12 shadow-2xl flex flex-col items-center text-center max-w-3xl mx-auto">
-            <div className="text-2xl font-black text-white mb-2">📥 Export Your Presentation</div>
-            <div className="text-sm font-bold text-slate-500 mb-8">💡 Open the downloaded file in PowerPoint, Google Slides, or Keynote.</div>
-
-            {error && <div className="mb-6 p-4 w-full bg-red-500/10 border border-red-500/30 text-red-500 text-sm font-bold rounded-xl flex items-center justify-center gap-2">⚠️ {error}</div>}
-
-            <div className="grid sm:grid-cols-3 gap-4 w-full">
-              <button
-                className="flex items-center justify-center gap-2 py-4 bg-purple-600 hover:bg-purple-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:border-slate-700 text-white font-black text-lg rounded-2xl shadow-xl shadow-purple-500/20 hover:shadow-purple-500/40 border border-purple-500  transition-all active:scale-[0.98] relative overflow-hidden"
-                onClick={handleDownload}
-                disabled={downloading}
-                id="download-ppt-btn"
-              >
-                {downloading ? (
-                  <><div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Generating file…</>
-                ) : (
-                  <>⬇️ Download .pptx</>
-                )}
-              </button>
-
-              <button
-                className="flex items-center justify-center gap-2 py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-black text-lg rounded-2xl border border-slate-700 transition-all active:scale-[0.98]"
-                onClick={handlePdfExport}
-                id="export-pdf-btn"
-                title="Export as PDF using browser print dialog"
-              >
-                🖨️ Export PDF
-              </button>
-
-              <button
-                className="flex items-center justify-center gap-2 py-4 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-indigo-400 hover:text-indigo-300 disabled:text-slate-500 font-black text-lg rounded-2xl border-2 border-indigo-500/30 hover:border-indigo-500/60 disabled:border-slate-800 transition-all active:scale-[0.98]"
-                onClick={handleShare}
-                disabled={sharing || !!shareUrl}
-                id="share-ppt-btn"
-              >
-                {sharing ? (
-                  <><div className="w-5 h-5 border-2 border-indigo-400/30 border-t-indigo-400 rounded-full animate-spin" /> Uploading…</>
-                ) : shareUrl ? (
-                  <>✅ Link Ready!</>
-                ) : (
-                  <>🔗 Share Link</>
-                )}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-black text-xs rounded-lg shadow-lg shadow-purple-500/20 transition-all active:scale-[0.98] whitespace-nowrap"
+                  onClick={handleDownload} disabled={downloading}
+                >
+                  {downloading ? <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : "⬇️"}
+                  .pptx
+                </button>
+                <button
+                  className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-lg border border-slate-700 transition-all active:scale-[0.98] whitespace-nowrap"
+                  onClick={handlePdfExport} title="Export PDF"
+                >
+                  🖨️ PDF
+                </button>
+                <button
+                  className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-indigo-400 hover:text-indigo-300 font-bold text-xs rounded-lg border border-indigo-500/30 transition-all active:scale-[0.98] whitespace-nowrap"
+                  onClick={handleShare} disabled={sharing || !!shareUrl}
+                >
+                  {sharing ? <span className="w-3 h-3 border-2 border-indigo-400/30 border-t-indigo-400 rounded-full animate-spin" /> : (shareUrl ? "✅" : "🔗")} Share
+                </button>
+              </div>
             </div>
 
-            {shareUrl && (
-              <div className="mt-8 w-full p-6 bg-slate-950 border border-slate-800 rounded-2xl animate-in fade-in slide-in-from-bottom-2">
-                <div className="text-xs font-black uppercase tracking-widest text-slate-500 mb-3">🌐 Your presentation is live at:</div>
-                <div className="flex flex-col sm:flex-row items-center gap-3">
-                  <a href={shareUrl} target="_blank" rel="noopener noreferrer" className="flex-1 bg-slate-900 border border-slate-800 px-4 py-3 rounded-xl text-indigo-400 font-mono text-sm hover:text-indigo-300 hover:border-indigo-500/50 transition-colors w-full sm:w-auto truncate block overflow-hidden text-ellipsis whitespace-nowrap text-left">
-                    {shareUrl}
-                  </a>
-                  <button
-                    className="w-full sm:w-auto px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition-all active:scale-95"
-                    onClick={() => { navigator.clipboard.writeText(shareUrl); }}
-                    title="Copy to clipboard"
-                  >
-                    📋 Copy
-                  </button>
-                </div>
+            {error && (
+              <div className="absolute top-16 left-4 right-4 z-50 p-3 bg-red-500/10 border border-red-500/30 text-red-500 text-xs font-bold rounded-xl flex items-center justify-between">
+                <span>⚠️ {error}</span>
+                <button onClick={() => setError("")} className="text-red-400 hover:text-red-300">✕</button>
               </div>
             )}
-            
+
+            {shareUrl && (
+              <div className="absolute top-16 left-4 right-4 z-50 p-3 bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-xs font-bold rounded-xl flex flex-col sm:flex-row items-center gap-3 backdrop-blur-md">
+                <span className="uppercase tracking-widest text-[10px] flex-none">🌐 Live Link:</span>
+                <a href={shareUrl} target="_blank" rel="noopener noreferrer" className="flex-1 truncate hover:underline">{shareUrl}</a>
+                <button onClick={() => navigator.clipboard.writeText(shareUrl)} className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-[10px] uppercase font-black">Copy</button>
+                <button onClick={() => setShareUrl(null)} className="text-indigo-400 hover:text-indigo-300">✕</button>
+              </div>
+            )}
+
+            {/* Active Slide Large Preview */}
+            <div className="flex-1 p-4 md:p-8 flex flex-col items-center justify-center overflow-hidden relative">
+              <div className="w-full max-w-4xl aspect-[16/9] bg-slate-900 rounded-xl overflow-hidden shadow-2xl relative group cursor-pointer border border-slate-800" onClick={() => setShowFullPreview(true)}>
+                <SlidePreview
+                  slide={slides[activeSlide]}
+                  template={template}
+                  customColors={customColors}
+                  index={activeSlide}
+                  isActive={true}
+                />
+                
+                <div className="absolute inset-0 bg-slate-950/0 group-hover:bg-slate-950/20 transition-all flex items-center justify-center">
+                   <div className="opacity-0 group-hover:opacity-100 bg-black/60 backdrop-blur px-4 py-2 rounded-lg text-white font-bold text-sm flex items-center gap-2 transform translate-y-4 group-hover:translate-y-0 transition-all duration-300">
+                     <span className="text-lg">👁️</span> Click for Fullscreen & Edit
+                   </div>
+                </div>
+              </div>
+              
+              <div className="mt-6 flex items-center gap-3 text-sm p-3 bg-slate-900 border border-slate-800 rounded-xl justify-center font-bold shadow-inner">
+                <span className="text-slate-500 uppercase tracking-widest text-xs">Viewing Slide {activeSlide + 1}:</span>
+                <span className="text-white bg-slate-800 px-3 py-1 rounded-md">{slides[activeSlide]?.title}</span>
+                <span className="text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-md text-[10px] uppercase tracking-widest border border-indigo-500/20">{slides[activeSlide]?.type}</span>
+              </div>
+            </div>
+
           </div>
         </div>
       )}

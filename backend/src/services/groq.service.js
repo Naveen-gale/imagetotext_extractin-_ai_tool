@@ -890,7 +890,7 @@ EXAMPLE of correct output:
 {"outline":[{"type":"title","title":"Introduction to AI","description":"Overview of AI and its impact"},{"type":"content","title":"What is AI?","description":"Definition and key concepts"},{"type":"stats","title":"AI by the Numbers","description":"Key statistics and growth data"},{"type":"thank-you","title":"Thank You","description":"Closing and Q&A"}]}
 
 STRICT RULES:
-1. Return ONLY the JSON object. No markdown. No explanations.
+1. You MUST return ONLY a valid JSON object. Do not include markdown code blocks, formatting, explanations, or any other text.
 2. "outline" MUST be an array of slides.
 3. Each slide MUST have "type", "title", "description".
 4. Valid types: ${allTypes}
