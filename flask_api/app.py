@@ -1,12 +1,25 @@
 import os
 import joblib
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from functools import wraps
 import time
+from dotenv import load_dotenv
+
+# Load .env (local dev)
+load_dotenv()
 
 app = Flask(__name__)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
-# Simple in-memory rate limiter (no external dependency)
+# ─── Register RAG Blueprint ───────────────────────────────────────────────────
+from rag import rag_bp
+from rag.store import start_cleanup_thread
+
+app.register_blueprint(rag_bp)
+start_cleanup_thread(interval_seconds=1800)  # cleanup every 30 min
+
+# ─── Rate Limiter ─────────────────────────────────────────────────────────────
 _rate_limit_store = {}  # ip -> [timestamps]
 RATE_LIMIT_REQUESTS = 30   # max requests
 RATE_LIMIT_WINDOW = 60     # per 60 seconds
@@ -30,7 +43,7 @@ def rate_limit(f):
     return decorated
 
 
-# Resolve model path with fallbacks for Render environment
+# ─── Model Loading ────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 possible_paths = [
@@ -46,7 +59,6 @@ for p in possible_paths:
         break
 
 if not MODEL_PATH:
-    # Default to current dir if none found, for logging
     MODEL_PATH = os.path.join(BASE_DIR, "theme_model.pkl")
 
 # Theme model
@@ -87,6 +99,10 @@ def get_structure_model():
             structure_model_load_error = str(e)
             print(f"Warning: Failed to load structure model. Error: {e}")
     return structure_model
+
+
+# ─── Existing Routes ──────────────────────────────────────────────────────────
+
 @app.route('/predict-theme', methods=['POST'])
 def predict_theme():
     m = get_model()
@@ -100,9 +116,7 @@ def predict_theme():
     prompt = data['prompt']
     
     try:
-        # The pipeline expects a list of strings
         prediction = m.predict([prompt])
-        # It returns a numpy array, we want the first element
         theme_name = str(prediction[0])
         return jsonify({
             "success": True,
@@ -135,18 +149,19 @@ def predict_structure():
 
 @app.route('/health', methods=['GET'])
 def health():
-    # Calling get_model() on health check will trigger the load if not already loaded,
-    # but to keep health check fast, we just report if it's currently loaded.
+    from rag.store import get_store_stats
     return jsonify({
-        "status": "ok", 
+        "status": "ok",
         "model_loaded": model is not None,
         "load_attempted": model_load_attempted,
         "load_error": model_load_error,
         "structure_model_loaded": structure_model is not None,
         "structure_load_attempted": structure_model_load_attempted,
-        "structure_load_error": structure_model_load_error
+        "structure_load_error": structure_model_load_error,
+        "rag_store": get_store_stats(),
+        "groq_configured": bool(os.environ.get("GROQ_API_KEY"))
     })
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5001))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=port, debug=False)

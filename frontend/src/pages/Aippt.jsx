@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { History as HistoryIcon, Rocket, Sparkles, Presentation } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { generatePptData, uploadPptFile, savePptHistory, generatePptOutline, generatePptSlide, analyzeReferencePpt, generateInsertedSlideData, saveAiCorrection, predictTheme, predictStructure } from "../utils/api";
+import { generatePptData, uploadPptFile, savePptHistory, generatePptOutline, generatePptSlide, analyzeReferencePpt, generateInsertedSlideData, saveAiCorrection, predictTheme, predictStructure, uploadRagFiles, generatePptWithRag, ragEditSlide } from "../utils/api";
 import { generatePptx, validateSlides, TEMPLATES, FONT_STYLES } from "../utils/pptGenerator";
 import EditableText from "../components/EditableText";
 import HistoryModal from "../components/modals/HistoryModal";
@@ -320,8 +320,17 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
     setIsEditing(true);
     setEditError("");
     try {
-      const { editSingleSlideData } = await import("../utils/api");
-      const updatedSlide = await editSingleSlideData(editPrompt, slide);
+      let updatedSlide = null;
+
+      // Try RAG-aware slide edit first (uses Groq + reference context)
+      try {
+        updatedSlide = await ragEditSlide(editPrompt, slide);
+      } catch (ragErr) {
+        // Fall back to original Node.js edit if RAG fails
+        console.warn("[RAG] Slide edit fallback:", ragErr.message);
+        const { editSingleSlideData } = await import("../utils/api");
+        updatedSlide = await editSingleSlideData(editPrompt, slide);
+      }
       
       // Preserve custom styles if AI missed them
       if (!updatedSlide.customStyles && slide.customStyles) {
@@ -1222,8 +1231,76 @@ export default function Aippt() {
     setShareUrl(null);
     setLastSavedId(null);
 
+    const hasRagFiles = !!(referenceFile || image);
+
     try {
-      // 1. Analyze reference if provided
+      // ── RAG PATH: when reference PPT or image is uploaded ─────────────────────
+      if (hasRagFiles) {
+        // Step 1: Upload files to Flask RAG pipeline
+        setGenStatus({ current: 0, total: 3, msg: "📂 Indexing your reference files with RAG..." });
+        try {
+          const ragResult = await uploadRagFiles({
+            referenceFile: referenceFile || null,
+            imageFile: image || null,
+          });
+          console.log(`[RAG] Indexed ${ragResult.chunk_count} chunks from ${(ragResult.sources || []).join(", ")}`);
+        } catch (ragUploadErr) {
+          console.warn("[RAG] Upload failed, proceeding without RAG:", ragUploadErr.message);
+          // Don't abort — fall through to RAG generation with empty context
+        }
+
+        // Step 2: Predict structure (same as normal path)
+        let finalStructure = overrideStructure || structure;
+        if (!finalStructure) {
+          setGenStatus({ current: 1, total: 3, msg: "🧠 Predicting optimal structure..." });
+          try {
+            finalStructure = await predictStructure(prompt);
+          } catch {
+            finalStructure = "Standard";
+          }
+        }
+
+        // Step 3: Generate full PPT with RAG + Groq (single call)
+        setGenStatus({ current: 2, total: 3, msg: "✨ Generating presentation with RAG context..." });
+        const generatedSlides = await generatePptWithRag({
+          prompt,
+          slideCount: slideCount || 8,
+          styleGuide: styleGuide || null,
+          structure: finalStructure,
+        });
+
+        if (!generatedSlides || generatedSlides.length === 0) {
+          throw new Error("RAG generation returned empty slides. Please try again.");
+        }
+
+        setGenStatus({ current: 3, total: 3, msg: "✅ Presentation ready!" });
+        setSlides(generatedSlides);
+        setActiveSlide(0);
+        setStep("preview");
+        setShowFullPreview(true);
+
+        savePptHistory({
+          prompt,
+          slideCount: generatedSlides.length,
+          template,
+          fontStyle,
+          slides: generatedSlides
+        }).then(res => setLastSavedId(res._id)).catch(err => console.error("History save failed:", err));
+
+        // Auto-upload PPT blob
+        try {
+          const tempBlob = await generatePptx(generatedSlides, customColors || template, fontStyle);
+          uploadPptFile(tempBlob, "testing_auto_gen.pptx").catch(e => console.warn("Auto upload failed", e));
+        } catch (err) {
+          console.warn("Failed to generate test PPT automatically", err);
+        }
+
+        return; // Done with RAG path
+      }
+
+      // ── NORMAL PATH: no reference files uploaded ───────────────────────────
+
+      // 1. Analyze reference if provided (style only, no RAG)
       let currentStyleGuide = styleGuide;
       if (referenceFile && !currentStyleGuide) {
         setGenStatus({ current: 0, total: 1, msg: "Analyzing reference style..." });
@@ -1567,7 +1644,7 @@ export default function Aippt() {
             {/* Image & Reference Uploads */}
             <div className="grid md:grid-cols-2 gap-10">
               <div className="space-y-3 font-[Space_Grotesk]">
-                <label className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">🖼️ Context Image (Optional)</label>
+                <label className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Context Image (Optional)</label>
                 {imagePreview ? (
                   <div className="flex items-center gap-6 bg-slate-950 border border-slate-800 rounded-2xl p-4">
                     <img src={imagePreview} alt="Reference" className="w-20 h-20 object-cover rounded-xl border border-slate-800" />

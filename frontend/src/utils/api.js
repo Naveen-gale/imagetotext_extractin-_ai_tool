@@ -6,6 +6,12 @@ if (BASE.startsWith("http") && !BASE.endsWith("/api/v1")) {
   BASE = BASE.replace(/\/+$/, "") + "/api/v1";
 }
 
+// ─── Flask RAG API (port 5001 locally, env var in production) ─────────────────
+// Local: Vite proxy /flask → http://localhost:5001
+// Production (Render): set VITE_FLASK_URL to your Flask service URL
+let FLASK_BASE = import.meta.env.VITE_FLASK_URL || "/flask";
+FLASK_BASE = FLASK_BASE.replace(/\/+$/, ""); // strip trailing slash
+
 function getSessionId() {
   let sid = localStorage.getItem("visiontext_session_id");
   if (!sid) {
@@ -377,4 +383,82 @@ export async function apiLogin({ email, password }) {
     body: JSON.stringify({ email, password }),
   });
   return await handleResponse(res, "Login");
+}
+
+// ─── RAG API Functions ────────────────────────────────────────────────────────
+
+/**
+ * Upload reference PPTX and/or image to the Flask RAG pipeline.
+ * Returns { success, chunk_count, sources, session_id }
+ */
+export async function uploadRagFiles({ referenceFile, imageFile }) {
+  const sessionId = getSessionId();
+  const fd = new FormData();
+  fd.append("session_id", sessionId);
+  if (referenceFile) fd.append("reference", referenceFile);
+  if (imageFile) fd.append("image", imageFile);
+
+  const res = await fetch(`${FLASK_BASE}/rag/upload`, {
+    method: "POST",
+    headers: { "x-session-id": sessionId },
+    body: fd,
+  });
+  return await handleResponse(res, "RAG Upload");
+}
+
+/**
+ * Generate a full presentation using the Flask RAG + Groq pipeline.
+ * Returns { slides: [...] } — same format as the Node.js backend.
+ */
+export async function generatePptWithRag({ prompt, slideCount = 8, styleGuide = null, structure = null }) {
+  const sessionId = getSessionId();
+  const res = await fetch(`${FLASK_BASE}/rag/generate-ppt`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-session-id": sessionId },
+    body: JSON.stringify({
+      prompt,
+      slide_count: slideCount,
+      session_id: sessionId,
+      style_guide: styleGuide,
+      structure,
+      top_k: 6,
+    }),
+  });
+  const data = await handleResponse(res, "RAG PPT Generation");
+  return data.slides;
+}
+
+/**
+ * Edit a single slide using the Flask RAG + Groq pipeline.
+ * Returns the updated slide dict.
+ */
+export async function ragEditSlide(prompt, slide) {
+  const sessionId = getSessionId();
+  const res = await fetch(`${FLASK_BASE}/rag/edit-slide`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-session-id": sessionId },
+    body: JSON.stringify({
+      prompt,
+      slide,
+      session_id: sessionId,
+    }),
+  });
+  const data = await handleResponse(res, "RAG Slide Edit");
+  return data.slide;
+}
+
+/**
+ * Check if the current session has RAG data indexed.
+ */
+export async function checkRagStatus() {
+  const sessionId = getSessionId();
+  try {
+    const res = await fetch(`${FLASK_BASE}/rag/status?session_id=${sessionId}`, {
+      headers: { "x-session-id": sessionId },
+    });
+    const data = await res.json();
+    return data.has_rag || false;
+  } catch {
+    return false;
+  }
 }
