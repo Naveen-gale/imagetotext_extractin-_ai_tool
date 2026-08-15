@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { History as HistoryIcon, Rocket, Sparkles, Presentation } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { generatePptData, uploadPptFile, savePptHistory, generatePptOutline, generatePptSlide, analyzeReferencePpt, generateInsertedSlideData, saveAiCorrection, predictTheme, predictStructure, uploadRagFiles, ragEditSlide } from "../utils/api";
+import { generatePptData, uploadPptFile, savePptHistory, generatePptOutline, generatePptSlide, analyzeReferencePpt, generateInsertedSlideData, saveAiCorrection, predictTheme, predictStructure, uploadRagFiles, ragEditSlide, editSingleSlideData, uploadImageFile, ragGenerateOutline, ragGenerateSlide, editPptData, updatePptHistory } from "../utils/api";
 import { generatePptx, validateSlides, TEMPLATES, FONT_STYLES } from "../utils/pptGenerator";
 import EditableText from "../components/EditableText";
 import HistoryModal from "../components/modals/HistoryModal";
@@ -328,8 +328,8 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
       } catch (ragErr) {
         // Fall back to original Node.js edit if RAG fails
         console.warn("[RAG] Slide edit fallback:", ragErr.message);
-        const { editSingleSlideData } = await import("../utils/api");
-        updatedSlide = await editSingleSlideData(editPrompt, slide);
+        const improved = await editSingleSlideData(editPrompt, slide);
+        updatedSlide = improved;
       }
       
       // Preserve custom styles if AI missed them
@@ -514,7 +514,6 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
       const file = e.target.files[0];
       if (!file) return;
       try {
-        const { uploadImageFile } = await import("../utils/api");
         const url = await uploadImageFile(file);
         if (url) {
            onUpdateSlide(currentIndex, { ...slide, image: url });
@@ -1074,6 +1073,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
+import { editSingleSlideData } from "../utils/api";
 export default function Aippt() {
   // Step states: "input" → "generating" → "preview"
   // Persistence: Initial load from localStorage
@@ -1239,7 +1239,7 @@ export default function Aippt() {
         // Step 1: Upload files to Flask RAG pipeline
         setGenStatus({ current: 0, total: 3, msg: "📂 Indexing your reference files with RAG..." });
         try {
-          const { uploadRagFiles, ragGenerateOutline, ragGenerateSlide, uploadPptFile } = await import("../utils/api");
+
           const ragResult = await uploadRagFiles({
             referenceFile: referenceFile || null,
             imageFile: image || null,
@@ -1271,7 +1271,6 @@ export default function Aippt() {
           if (image) {
              setGenStatus({ current: 0, total: totalSteps, msg: "Uploading context image..." });
              try {
-                const { uploadImageFile } = await import("../utils/api");
                 contextImageUrl = await uploadImageFile(image);
              } catch (e) {
                 console.warn("Failed to upload context image", e);
@@ -1361,7 +1360,6 @@ export default function Aippt() {
       if (image) {
          setGenStatus({ current: 0, total: slideCount, msg: "Uploading context image..." });
          try {
-            const { uploadImageFile } = await import("../utils/api");
             contextImageUrl = await uploadImageFile(image);
          } catch (e) {
             console.warn("Failed to upload context image", e);
@@ -1458,7 +1456,6 @@ export default function Aippt() {
     setGenStatus({ current: 0, total: 1, msg: "Refining entire presentation with AI..." });
     setError("");
     try {
-      const { editPptData } = await import("../utils/api");
       const updatedSlides = await editPptData(refinePrompt, slides);
       if (updatedSlides && updatedSlides.length > 0) {
         setSlides(updatedSlides);
@@ -1562,7 +1559,7 @@ export default function Aippt() {
     try {
       let finalId = lastSavedId;
       
-      const { updatePptHistory } = await import("../utils/api");
+
 
       // If not saved yet, save now
       if (!finalId) {

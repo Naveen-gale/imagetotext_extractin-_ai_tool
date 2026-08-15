@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Rnd } from "react-rnd";
-import { getPptHistoryById, savePptHistory, editSingleSlideData } from "../utils/api";
+import { getPptHistoryById, savePptHistory, editSingleSlideData, updatePptHistory, editPptData } from "../utils/api";
 import { generatePptx, TEMPLATES } from "../utils/pptGenerator";
 import { compileSlideToElements } from "../utils/templateCompiler";
 
@@ -636,7 +636,6 @@ export default function SharePpt() {
     updated[currentIndex] = editedSlide;
     
     try {
-      const { updatePptHistory } = await import("../utils/api");
       await updatePptHistory(id, { slides: updated });
       setData(prev => ({ ...prev, slides: updated }));
       setLocalSlides(null);
@@ -676,7 +675,6 @@ export default function SharePpt() {
     setAiImproving(true);
     showToast("✨ AI is improving all slides…");
     try {
-      const { editPptData } = await import("../utils/api");
       const updatedSlides = await editPptData(
         "Make this presentation more professional, factual, and detailed. Expand every bullet point with specific real-world facts, statistics, and examples. Keep slide types intact.",
         slides
