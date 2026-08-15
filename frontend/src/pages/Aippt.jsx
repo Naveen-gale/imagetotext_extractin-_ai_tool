@@ -1605,9 +1605,9 @@ export default function Aippt() {
 
   // ─── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8 space-y-8">
+    <div className={step === "preview" ? "w-full h-screen bg-slate-950 flex flex-col p-4 sm:p-6 overflow-hidden" : "max-w-5xl mx-auto px-4 py-8 space-y-8"}>
       {/* Back navigation */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div className={`flex flex-col sm:flex-row items-center justify-between gap-4 ${step === "preview" ? "flex-none mb-4" : ""}`}>
         <div className="flex items-center gap-4">
           <Link to="/" className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-xl border border-slate-800 transition-all font-bold text-sm">
             ← Back
@@ -2140,7 +2140,7 @@ export default function Aippt() {
 
       {/* ── STEP 3: Preview & Export (Side-by-Side) ── */}
       {step === "preview" && slides.length > 0 && (
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 h-[calc(100vh-8rem)] min-h-[600px] flex flex-col md:flex-row gap-6 bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-6 shadow-xl">
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 flex-1 min-h-0 flex flex-col md:flex-row gap-6 bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-6 shadow-xl">
           
           {/* Left Column: Thumbnails */}
           <div className="w-full md:w-64 lg:w-72 flex-none flex flex-col gap-4">
@@ -2266,7 +2266,22 @@ export default function Aippt() {
             )}
 
             {/* Active Slide Large Preview */}
-            <div className="flex-1 p-4 md:p-8 flex flex-col items-center justify-center overflow-hidden relative">
+            <div 
+              className="flex-1 p-4 md:p-8 flex flex-col items-center justify-center overflow-hidden relative"
+              onWheel={(e) => {
+                const now = Date.now();
+                // 600ms debounce to prevent scrolling through multiple slides instantly
+                if (!window.lastWheelTime || now - window.lastWheelTime > 600) {
+                  if (e.deltaY > 0 && activeSlide < slides.length - 1) {
+                    setActiveSlide(prev => prev + 1);
+                    window.lastWheelTime = now;
+                  } else if (e.deltaY < 0 && activeSlide > 0) {
+                    setActiveSlide(prev => prev - 1);
+                    window.lastWheelTime = now;
+                  }
+                }
+              }}
+            >
               <div className="w-full max-w-4xl aspect-[16/9] bg-slate-900 rounded-xl overflow-hidden shadow-2xl relative group cursor-pointer border border-slate-800" onClick={() => setShowFullPreview(true)}>
                 <SlidePreview
                   slide={slides[activeSlide]}
