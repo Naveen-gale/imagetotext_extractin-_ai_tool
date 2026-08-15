@@ -10,131 +10,198 @@ export const TEMPLATES = {
   corporate: {
     name: "Corporate Blue", emoji: "🏢",
     bg: "f8fafc", accent: "3b82f6", title: "0f172a", body: "334155", sub: "64748b", highlight: "2563eb",
+    renderer: "css",
+    animation: { type: "gradient-flow", speed: 0.5, intensity: 1 },
+    text: { preferred: "dark", primary: "0f172a", secondary: "334155" }
   },
   modern: {
     name: "Modern Minimal", emoji: "✨",
     bg: "ffffff", accent: "10b981", title: "18181b", body: "3f3f46", sub: "71717a", highlight: "059669",
+    renderer: "css",
+    animation: { type: "floating-blobs", speed: 0.3, intensity: 1 },
+    text: { preferred: "dark", primary: "18181b", secondary: "3f3f46" }
   },
   dark: {
     name: "Dark Tech", emoji: "🌙",
     bg: "0f172a", accent: "8b5cf6", title: "f8fafc", body: "cbd5e1", sub: "94a3b8", highlight: "a78bfa",
+    renderer: "css",
+    animation: { type: "starfield", speed: 1.0, intensity: 2 },
+    text: { preferred: "light", primary: "f8fafc", secondary: "cbd5e1" }
   },
   creative: {
     name: "Creative Studio", emoji: "🎨",
     bg: "fff1f2", accent: "f43f5e", title: "4c0519", body: "881337", sub: "9f1239", highlight: "e11d48",
+    renderer: "css", animation: { type: "floating-blobs", speed: 0.6, intensity: 2 },
+    text: { preferred: "dark", primary: "4c0519", secondary: "881337" }
   },
   elegant: {
     name: "Elegant Serif", emoji: "🖋️",
     bg: "fdfbf7", accent: "b45309", title: "451a03", body: "78350f", sub: "92400e", highlight: "d97706",
+    renderer: "css", animation: { type: "gradient-flow", speed: 0.2, intensity: 1 },
+    text: { preferred: "dark", primary: "451a03", secondary: "78350f" }
   },
   nature: {
     name: "Organic Green", emoji: "🌿",
     bg: "f0fdf4", accent: "22c55e", title: "064e3b", body: "0f766e", sub: "115e59", highlight: "16a34a",
+    renderer: "css", animation: { type: "floating-blobs", speed: 0.2, intensity: 1 },
+    text: { preferred: "dark", primary: "064e3b", secondary: "0f766e" }
   },
   cyber: {
     name: "Cyberpunk", emoji: "🤖",
     bg: "000000", accent: "06b6d4", title: "f0fdfa", body: "a5f3fc", sub: "67e8f9", highlight: "22d3ee",
+    renderer: "css", animation: { type: "cyber-grid", speed: 1.0, intensity: 3 },
+    text: { preferred: "light", primary: "f0fdfa", secondary: "a5f3fc" }
   },
   sunset: {
     name: "Warm Sunset", emoji: "🌅",
     bg: "fff7ed", accent: "ea580c", title: "7c2d12", body: "9a3412", sub: "c2410c", highlight: "f97316",
+    renderer: "css", animation: { type: "gradient-flow", speed: 0.4, intensity: 2 },
+    text: { preferred: "dark", primary: "7c2d12", secondary: "9a3412" }
   },
   ocean: {
     name: "Deep Ocean", emoji: "🌊",
     bg: "ecfeff", accent: "0891b2", title: "164e63", body: "155e75", sub: "0e7490", highlight: "06b6d4",
+    renderer: "css", animation: { type: "glassmorphism", speed: 0.5, intensity: 2 },
+    text: { preferred: "dark", primary: "164e63", secondary: "155e75" }
   },
   startup: {
     name: "Startup Pink", emoji: "🚀",
     bg: "fdf2f8", accent: "ec4899", title: "831843", body: "be185d", sub: "f472b6", highlight: "db2777",
+    renderer: "css", animation: { type: "floating-blobs", speed: 0.8, intensity: 2 },
+    text: { preferred: "dark", primary: "831843", secondary: "be185d" }
   },
   academic: {
     name: "Scholar Paper", emoji: "📜",
     bg: "f5f5f4", accent: "57534e", title: "1c1917", body: "44403c", sub: "78716c", highlight: "292524",
+    renderer: "css", animation: { type: "gradient-flow", speed: 0.1, intensity: 1 },
+    text: { preferred: "dark", primary: "1c1917", secondary: "44403c" }
   },
   future: {
     name: "Abstract Glass", emoji: "💎",
     bg: "172554", accent: "6366f1", title: "ffffff", body: "bfdbfe", sub: "818cf8", highlight: "a5b4fc",
+    renderer: "css", animation: { type: "glassmorphism", speed: 0.8, intensity: 2 },
+    text: { preferred: "light", primary: "ffffff", secondary: "bfdbfe" }
   },
   bold: {
     name: "High Impact", emoji: "💥",
     bg: "000000", accent: "ef4444", title: "ffffff", body: "d1d5db", sub: "f87171", highlight: "fca5a5",
+    renderer: "css", animation: { type: "gradient-flow", speed: 2.0, intensity: 3 },
+    text: { preferred: "light", primary: "ffffff", secondary: "d1d5db" }
   },
   premium_dark: {
     name: "Luxury Obsidian", emoji: "🖤",
     bg: "0a0a0a", accent: "fbbf24", title: "ffffff", body: "d4d4d8", sub: "9ca3af", highlight: "fcd34d",
+    renderer: "three", animation: { type: "particle-network", speed: 0.3, intensity: 1.5, particleCount: 60 },
+    text: { preferred: "light", primary: "ffffff", secondary: "d4d4d8" }
   },
   neon_glow: {
     name: "Neon Nights", emoji: "🟣",
     bg: "0f0c29", accent: "00f2fe", title: "ffffff", body: "e0e7ff", sub: "a5b4fc", highlight: "4facfe",
+    renderer: "css", animation: { type: "gradient-flow", speed: 1.5, intensity: 3 },
+    text: { preferred: "light", primary: "ffffff", secondary: "e0e7ff" }
   },
   glassmorphism: {
     name: "Glassmorphism Blur", emoji: "🧊",
     bg: "cbd5e1", accent: "3b82f6", title: "1e293b", body: "334155", sub: "475569", highlight: "2563eb",
+    renderer: "css", animation: { type: "glassmorphism", speed: 0.6, intensity: 3 },
+    text: { preferred: "dark", primary: "1e293b", secondary: "334155" }
   },
   earthy: {
     name: "Earthy Neutrals", emoji: "🍂",
     bg: "fafaf9", accent: "a8a29e", title: "44403c", body: "57534e", sub: "78716c", highlight: "a8a29e",
+    renderer: "css", animation: { type: "floating-blobs", speed: 0.2, intensity: 1 },
+    text: { preferred: "dark", primary: "44403c", secondary: "57534e" }
   },
   // ── New 15 ───────────────────────────────────────────────────────────────
   pure_white: {
     name: "Clean White", emoji: "🤍",
     bg: "ffffff", accent: "1a1a1a", title: "111111", body: "333333", sub: "888888", highlight: "000000",
+    renderer: "css", animation: { type: "gradient-flow", speed: 0.1, intensity: 1 },
+    text: { preferred: "dark", primary: "111111", secondary: "333333" }
   },
   pure_black: {
     name: "Pure Black", emoji: "🖤",
     bg: "000000", accent: "eeeeee", title: "ffffff", body: "cccccc", sub: "888888", highlight: "ffffff",
+    renderer: "three", animation: { type: "particle-network", speed: 0.2, intensity: 1, particleCount: 50 },
+    text: { preferred: "light", primary: "ffffff", secondary: "cccccc" }
   },
   dark_mode: {
     name: "Dark Mode", emoji: "🌙",
     bg: "1a1a2e", accent: "e94560", title: "eaeaea", body: "a8a8b8", sub: "6c6c7a", highlight: "e94560",
+    renderer: "css", animation: { type: "gradient-flow", speed: 0.6, intensity: 2 },
+    text: { preferred: "light", primary: "eaeaea", secondary: "a8a8b8" }
   },
   blue_corporate: {
     name: "Blue Corporate", emoji: "🏢",
     bg: "f0f4ff", accent: "1d4ed8", title: "1e3a5f", body: "374151", sub: "6b7280", highlight: "1d4ed8",
+    renderer: "css", animation: { type: "floating-blobs", speed: 0.3, intensity: 1 },
+    text: { preferred: "dark", primary: "1e3a5f", secondary: "374151" }
   },
   green_fresh: {
     name: "Green Fresh", emoji: "🌱",
     bg: "f0fdf4", accent: "16a34a", title: "14532d", body: "374151", sub: "6b7280", highlight: "15803d",
+    renderer: "css", animation: { type: "glassmorphism", speed: 0.4, intensity: 1 },
+    text: { preferred: "dark", primary: "14532d", secondary: "374151" }
   },
   purple_dream: {
     name: "Purple Dream", emoji: "💜",
     bg: "1e1033", accent: "a855f7", title: "f3e8ff", body: "d8b4fe", sub: "9333ea", highlight: "c084fc",
+    renderer: "three", animation: { type: "particle-network", speed: 0.8, intensity: 2, particleCount: 70 },
+    text: { preferred: "light", primary: "f3e8ff", secondary: "d8b4fe" }
   },
   modern_gradient_theme: {
     name: "Modern Gradient", emoji: "🌊",
     bg: "0f0c29", accent: "fc00ff", title: "ffffff", body: "e0e0ff", sub: "cc00cc", highlight: "00dbde",
+    renderer: "css", animation: { type: "gradient-flow", speed: 1.0, intensity: 2 },
+    text: { preferred: "light", primary: "ffffff", secondary: "e0e0ff" }
   },
   minimal_clean: {
     name: "Minimal Clean", emoji: "✨",
     bg: "fafafa", accent: "374151", title: "111827", body: "4b5563", sub: "9ca3af", highlight: "1f2937",
+    renderer: "css", animation: { type: "floating-blobs", speed: 0.1, intensity: 1 },
+    text: { preferred: "dark", primary: "111827", secondary: "4b5563" }
   },
   creative_burst: {
     name: "Creative Burst", emoji: "🎨",
     bg: "1a0a2e", accent: "ff6b6b", title: "ffffff", body: "ffd93d", sub: "ff9f43", highlight: "ff6b6b",
+    renderer: "css", animation: { type: "gradient-flow", speed: 1.2, intensity: 2 },
+    text: { preferred: "light", primary: "ffffff", secondary: "ffd93d" }
   },
   business_pro: {
     name: "Business Pro", emoji: "📊",
     bg: "1f2937", accent: "6366f1", title: "f9fafb", body: "d1d5db", sub: "6b7280", highlight: "818cf8",
+    renderer: "three", animation: { type: "particle-network", speed: 0.5, intensity: 1, particleCount: 60 },
+    text: { preferred: "light", primary: "f9fafb", secondary: "d1d5db" }
   },
   tech_dark: {
     name: "Tech Dark", emoji: "💻",
     bg: "0d1117", accent: "00ff41", title: "ffffff", body: "8b949e", sub: "3c4043", highlight: "00ff41",
+    renderer: "css", animation: { type: "cyber-grid", speed: 1.5, intensity: 3 },
+    text: { preferred: "light", primary: "ffffff", secondary: "8b949e" }
   },
   education_blue: {
     name: "Education Blue", emoji: "📚",
     bg: "eff6ff", accent: "2563eb", title: "1e3a5f", body: "374151", sub: "6b7280", highlight: "1d4ed8",
+    renderer: "css", animation: { type: "gradient-flow", speed: 0.3, intensity: 1 },
+    text: { preferred: "dark", primary: "1e3a5f", secondary: "374151" }
   },
   startup_purple: {
     name: "Startup Purple", emoji: "🚀",
     bg: "13111c", accent: "8b5cf6", title: "ffffff", body: "c4b5fd", sub: "7c3aed", highlight: "a78bfa",
+    renderer: "css", animation: { type: "glassmorphism", speed: 0.6, intensity: 2 },
+    text: { preferred: "light", primary: "ffffff", secondary: "c4b5fd" }
   },
   medical_clean: {
     name: "Medical Clean", emoji: "⚕️",
     bg: "f8fafc", accent: "0891b2", title: "0c4a6e", body: "374151", sub: "64748b", highlight: "0e7490",
+    renderer: "css", animation: { type: "floating-blobs", speed: 0.2, intensity: 1 },
+    text: { preferred: "dark", primary: "0c4a6e", secondary: "374151" }
   },
   finance_gold: {
     name: "Finance Gold", emoji: "💰",
     bg: "0f0e0a", accent: "d4af37", title: "f5f0e0", body: "b8a06a", sub: "7a6a3a", highlight: "f0c040",
+    renderer: "css", animation: { type: "gradient-flow", speed: 0.3, intensity: 2 },
+    text: { preferred: "light", primary: "f5f0e0", secondary: "b8a06a" }
   },
 };
 

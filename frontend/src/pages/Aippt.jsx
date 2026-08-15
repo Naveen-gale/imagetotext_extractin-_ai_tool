@@ -7,6 +7,8 @@ import { generatePptData, uploadPptFile, savePptHistory, generatePptOutline, gen
 import { generatePptx, validateSlides, TEMPLATES, FONT_STYLES } from "../utils/pptGenerator";
 import EditableText from "../components/EditableText";
 import HistoryModal from "../components/modals/HistoryModal";
+import AnimationEngine from "../animations/AnimationEngine";
+import { getReadableTextColor } from "../utils/textColor";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const SLIDE_COUNTS = [0, 4, 6, 8, 10, 12, 15]; // 0 is Auto
@@ -25,26 +27,28 @@ const LEARNING_BADGE = (
 function SlidePreview({ slide, template, index, isActive, onClick }) {
   const tmpl = TEMPLATES[template] || TEMPLATES.corporate;
   
-  // Compute whether the background is dark so we can pick a safe text fallback
-  const bgHex = (tmpl.bg || "ffffff").replace("#", "");
-  const _r = parseInt(bgHex.substring(0, 2), 16) || 0;
-  const _g = parseInt(bgHex.substring(2, 4), 16) || 0;
-  const _b = parseInt(bgHex.substring(4, 6), 16) || 0;
-  const _bgIsDark = (0.299 * _r + 0.587 * _g + 0.114 * _b) < 128;
-  const safeTextFallback = _bgIsDark ? "#ffffff" : "#1a1a1a";
-  const fmtCol = (c) => c ? (c.startsWith("#") ? c : `#${c}`) : safeTextFallback;
+  // Use new textColor logic (you can pass the slide.bgColor or theme.bg)
+  const bgToUse = slide.bgColor || tmpl.bg;
+  const getCol = (type) => getReadableTextColor({
+    predictedColor: tmpl[type],
+    backgroundColor: bgToUse,
+    theme: tmpl
+  });
 
   const renderContent = () => {
-    const accent = `#${tmpl.accent || (_bgIsDark ? "6366f1" : "3b82f6")}`;
-    const titleColor = `#${tmpl.highlight || tmpl.title || (_bgIsDark ? "ffffff" : "1a1a1a")}`;
-    const bodyColor = `#${tmpl.body || (_bgIsDark ? "cccccc" : "333333")}`;
+    // If the ML model provides specific colors, getReadableTextColor validates them
+    const accent = `#${tmpl.accent || "3b82f6"}`;
+    const titleColor = getCol('title');
+    const bodyColor = getCol('body');
+    const subColor = getCol('sub');
+    const highlight = `#${tmpl.highlight || tmpl.accent || "3b82f6"}`;
     const bg = `#${tmpl.bg || "ffffff"}`;
 
     if (slide.type === "title") {
       return (
         <div className="flex flex-col items-center justify-center h-full p-4 text-center">
-          <div className="text-xl sm:text-2xl font-black mb-2" style={{ color: `#${tmpl.title}`, lineHeight: 1.2 }}>{slide.title}</div>
-          {slide.subtitle && <div className="text-[10px] sm:text-xs font-bold opacity-80" style={{ color: `#${tmpl.sub}` }}>{slide.subtitle}</div>}
+          <div className="text-xl sm:text-2xl font-black mb-2" style={{ color: titleColor, lineHeight: 1.2 }}>{slide.title}</div>
+          {slide.subtitle && <div className="text-[10px] sm:text-xs font-bold opacity-80" style={{ color: subColor }}>{slide.subtitle}</div>}
         </div>
       );
     }
@@ -53,8 +57,8 @@ function SlidePreview({ slide, template, index, isActive, onClick }) {
         <div className="flex flex-col items-center justify-center h-full p-4 text-center relative overflow-hidden">
           <div className="absolute inset-x-0 top-1/4 bottom-1/4 opacity-10" style={{ background: accent }} />
           {slide.sectionNumber && <div className="text-4xl font-black opacity-20 mb-1" style={{ color: accent }}>{slide.sectionNumber}</div>}
-          <div className="text-lg sm:text-xl font-black" style={{ color: `#${tmpl.title}` }}>{slide.title}</div>
-          {slide.subtitle && <div className="text-[10px] sm:text-xs font-bold mt-2 opacity-60" style={{ color: `#${tmpl.sub}` }}>{slide.subtitle}</div>}
+          <div className="text-lg sm:text-xl font-black" style={{ color: titleColor }}>{slide.title}</div>
+          {slide.subtitle && <div className="text-[10px] sm:text-xs font-bold mt-2 opacity-60" style={{ color: subColor }}>{slide.subtitle}</div>}
         </div>
       );
     }
@@ -78,8 +82,8 @@ function SlidePreview({ slide, template, index, isActive, onClick }) {
       return (
         <div className="flex flex-col justify-center h-full p-6">
           <div className="text-4xl font-serif leading-none mb-2" style={{ color: accent }}>"</div>
-          <div className="text-sm sm:text-base font-bold italic mb-4" style={{ color: `#${tmpl.title}` }}>{slide.quote || slide.title}</div>
-          {slide.author && <div className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-right" style={{ color: `#${tmpl.sub}` }}>— {slide.author}</div>}
+          <div className="text-sm sm:text-base font-bold italic mb-4" style={{ color: titleColor }}>{slide.quote || slide.title}</div>
+          {slide.author && <div className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-right" style={{ color: subColor }}>— {slide.author}</div>}
         </div>
       );
     }
@@ -184,9 +188,9 @@ function SlidePreview({ slide, template, index, isActive, onClick }) {
     if (slide.type === "thank-you") {
       return (
         <div className="flex flex-col items-center justify-center h-full p-4 text-center">
-          <div className="text-xl sm:text-2xl font-black mb-3" style={{ color: `#${tmpl.title}` }}>{slide.title || "Thank You"}</div>
+          <div className="text-xl sm:text-2xl font-black mb-3" style={{ color: titleColor }}>{slide.title || "Thank You"}</div>
           <div className="w-12 h-0.5 mb-3" style={{ background: accent }} />
-          {slide.subtitle && <div className="text-[10px] sm:text-xs font-bold opacity-70" style={{ color: `#${tmpl.sub}` }}>{slide.subtitle}</div>}
+          {slide.subtitle && <div className="text-[10px] sm:text-xs font-bold opacity-70" style={{ color: subColor }}>{slide.subtitle}</div>}
         </div>
       );
     }
@@ -221,7 +225,7 @@ function SlidePreview({ slide, template, index, isActive, onClick }) {
               </li>
             ))}
             {!slide.bullets?.length && slide.subtitle && (
-              <div className="text-[10px] sm:text-xs font-bold opacity-80" style={{ color: `#${tmpl.sub}` }}>{slide.subtitle}</div>
+              <div className="text-[10px] sm:text-xs font-bold opacity-80" style={{ color: subColor }}>{slide.subtitle}</div>
             )}
           </ul>
           {slide.image && (
@@ -233,7 +237,7 @@ function SlidePreview({ slide, template, index, isActive, onClick }) {
         {slide.extraText?.length > 0 && (
           <div className="mt-2 flex flex-col gap-1">
             {slide.extraText.map((txt, i) => (
-              <div key={i} className="text-[8px] sm:text-[10px] font-medium opacity-70" style={{ color: fmtCol(tmpl.body) }}>{txt}</div>
+              <div key={i} className="text-[8px] sm:text-[10px] font-medium opacity-70" style={{ color: bodyColor }}>{txt}</div>
             ))}
           </div>
         )}
@@ -248,46 +252,51 @@ function SlidePreview({ slide, template, index, isActive, onClick }) {
       className={`relative w-full aspect-[16/9] rounded-xl overflow-hidden cursor-pointer transition-all duration-300 hover:scale-[1.02] hover:shadow-xl ${
         isActive ? "ring-4 ring-offset-2 ring-offset-slate-900 shadow-2xl scale-[1.02]" : "ring-1 ring-white/10"
       }`}
-      style={{
-        background: fmtCol(tmpl.bg),
-        ['--tw-ring-color']: isActive ? fmtCol(tmpl.accent) : undefined
-      }}
-      onClick={onClick}
+      onClick={() => onClick(index)}
       role="button"
       aria-label={`Slide ${index + 1}: ${slide.title}`}
     >
-      <div className="absolute top-0 left-0 w-full h-1.5" style={{ background: fmtCol(tmpl.accent) }} />
-      
-      {/* Delete button (Full Control) */}
-      <button 
-        className="absolute top-3 right-3 w-8 h-8 rounded-full bg-red-500/20 hover:bg-red-500 text-red-500 hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all z-20 border border-red-500/30"
-        onClick={(e) => { e.stopPropagation(); slide.onDelete?.(); }}
-        title="Delete Slide"
-      >
-        🗑️
-      </button>
+      <AnimationEngine themeKey={template} isPreview={!isActive} customBg={slide.bgColor}>
+        {/* Delete button (Full Control) */}
+        <button 
+          className="absolute top-3 right-3 w-8 h-8 rounded-full bg-red-500/20 hover:bg-red-500 text-red-500 hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all z-20 border border-red-500/30"
+          onClick={(e) => { e.stopPropagation(); slide.onDelete?.(); }}
+          title="Delete Slide"
+        >
+          🗑️
+        </button>
 
-      <div className="absolute inset-0 overflow-hidden">
-        {renderContent()}
-      </div>
-      <div className="absolute bottom-2 right-3 text-[8px] font-black opacity-50" style={{ color: fmtCol(tmpl.body) }}>{index + 1}</div>
-
+        <div key={`slide-content-${index}-${isActive}`} className={`absolute inset-0 overflow-hidden ${isActive ? 'slide-content-container' : ''}`}>
+          {renderContent()}
+        </div>
+        
+        {isActive && (
+          <div className="absolute bottom-3 right-3 px-2 py-1 rounded bg-black/40 backdrop-blur text-white/90 text-[8px] font-black tracking-wider uppercase opacity-0 group-hover:opacity-100 transition-opacity">
+            Edit
+          </div>
+        )}
+      </AnimationEngine>
     </div>
   );
 }
+
 
 // ─── Full-screen preview modal ────────────────────────────────────────────────
 function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlides, onClose, onPrev, onNext, template, customColors, fontStyle }) {
   const tmpl = customColors || TEMPLATES[template] || TEMPLATES.corporate;
   const slide = slides[currentIndex];
-  // Compute a background-aware safe text fallback
-  const _bh = (tmpl.bg || "ffffff").replace("#", "");
-  const _br = parseInt(_bh.substring(0, 2), 16) || 0;
-  const _bg2 = parseInt(_bh.substring(2, 4), 16) || 0;
-  const _bb = parseInt(_bh.substring(4, 6), 16) || 0;
-  const _fIsDark = (0.299 * _br + 0.587 * _bg2 + 0.114 * _bb) < 128;
-  const fmtColFallback = _fIsDark ? "#ffffff" : "#1a1a1a";
-  const fmtCol = (c) => c ? (c.startsWith("#") ? c : `#${c}`) : fmtColFallback;
+  // Use background-aware text colors
+  const bgToUse = slide.bgColor || tmpl.bg;
+  const getCol = (type) => getReadableTextColor({
+    predictedColor: tmpl[type],
+    backgroundColor: bgToUse,
+    theme: tmpl
+  });
+  const tTitle = getCol('title');
+  const tBody = getCol('body');
+  const tSub = getCol('sub');
+  
+  const fmtCol = (c) => c ? (c.startsWith("#") ? c : `#${c}`) : "#ffffff";
   const containerRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -688,8 +697,8 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
               exit={{ x: -300, opacity: 0 }}
               transition={{ duration: 0.4, ease: "easeInOut" }}
               className="relative w-full max-w-[100vw] sm:max-w-[98vw] aspect-[16/9] max-h-[100vh] sm:max-h-[90vh] shadow-[0_0_100px_rgba(0,0,0,0.8)] sm:rounded-3xl overflow-hidden ring-1 ring-white/10 flex flex-col"
-              style={{ background: fmtCol(slide.bgColor || tmpl.bg) }}
             >
+              <AnimationEngine themeKey={template} isPreview={false} customBg={slide.bgColor}>
               <div className="absolute top-0 left-0 w-full h-2 z-10" style={{ background: fmtCol(tmpl.accent) }} />
 
           {/* Empty State / Dashboard (Pro Builder) */}
@@ -1063,6 +1072,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
 
             <div className="absolute bottom-6 right-8 text-sm font-black opacity-30" style={{ color: fmtCol(tmpl.body) }}>{currentIndex + 1}</div>
 
+          </AnimationEngine>
           </motion.div>
         </AnimatePresence>
       </div>
@@ -1120,6 +1130,7 @@ export default function Aippt() {
   const [error, setError] = useState("");
   const [showRefineModal, setShowRefineModal] = useState(false);
   const [refinePrompt, setRefinePrompt] = useState("");
+  const [isSavingExplicit, setIsSavingExplicit] = useState(false);
 
   const fileInputRef = useRef(null);
   const pptBlobRef = useRef(null);
@@ -1148,11 +1159,20 @@ export default function Aippt() {
 
     saveState();
 
-    // Force save on page unload
+  // Force save on page unload
     window.addEventListener("beforeunload", saveState);
     return () => window.removeEventListener("beforeunload", saveState);
   }, [prompt, slides, template, fontStyle, slideCount, step, activeSlide, showFullPreview, lastSavedId, customColors]);
 
+  // Auto-save history to backend when slides, customColors, template or fontStyle change
+  useEffect(() => {
+    if (!lastSavedId || step !== "preview") return;
+    const timeout = setTimeout(() => {
+      updatePptHistory(lastSavedId, { slides, template, fontStyle, customColors, prompt })
+        .catch(e => console.warn("Auto-save to backend failed", e));
+    }, 2000);
+    return () => clearTimeout(timeout);
+  }, [slides, customColors, template, fontStyle, prompt, lastSavedId, step]);
   // Handle Fullscreen during generation
   useEffect(() => {
     if (step === "preview" && !showFullPreview) {
@@ -1190,8 +1210,20 @@ export default function Aippt() {
     setError("");
     setIsPredictingTheme(true);
     try {
-      // predictTheme returns the mapped key, e.g., "nature"
-      const themeKey = await predictTheme(prompt); 
+      // predictTheme returns the ML label, e.g., "Cyber Future"
+      const mlLabel = await predictTheme(prompt); 
+      
+      const themeMap = {
+        'Abstract Glass': 'future',
+        'Cyber Future': 'cyber',
+        'Eco Nature': 'nature',
+        'Executive Blue': 'corporate',
+        'Midnight Neon': 'premium_dark',
+        'Modern Sleek': 'modern',
+        'Neon Nights': 'neon_glow',
+        'Royal Gold': 'finance_gold'
+      };
+      const themeKey = themeMap[mlLabel] || 'modern';
       const structureName = await predictStructure(prompt).catch(() => "Standard");
       
       if (themeKey || structureName) {
@@ -1305,6 +1337,7 @@ export default function Aippt() {
             slideCount: generatedSlides.length,
             template,
             fontStyle,
+            customColors,
             slides: generatedSlides
           }).then(res => setLastSavedId(res._id)).catch(err => console.error("History save failed:", err));
 
@@ -1393,6 +1426,7 @@ export default function Aippt() {
         slideCount,
         template,
         fontStyle,
+        customColors,
         slides: generatedSlides
       }).then(res => setLastSavedId(res._id)).catch(err => console.error("History save failed:", err));
       
@@ -1505,6 +1539,7 @@ export default function Aippt() {
           slideCount: data.slides.length,
           template,
           fontStyle,
+          customColors,
           slides: data.slides
         }).then(res => setLastSavedId(res._id)).catch(err => console.error("History save failed:", err));
       } else {
@@ -1533,6 +1568,13 @@ export default function Aippt() {
     setDownloading(true);
     setError("");
     try {
+      if (lastSavedId) {
+        await updatePptHistory(lastSavedId, { slides, template, fontStyle, customColors, prompt }).catch(e => console.warn("Save on download failed", e));
+      } else {
+        const res = await savePptHistory({ prompt, slideCount, template, fontStyle, customColors, slides }).catch(e => console.warn("Save on download failed", e));
+        if (res) setLastSavedId(res._id);
+      }
+
       let blob = pptBlobRef.current;
       if (!blob) {
         blob = await generatePptx(slides, customColors || template, fontStyle);
@@ -1567,13 +1609,14 @@ export default function Aippt() {
           slideCount,
           template,
           fontStyle,
+          customColors,
           slides
         });
         finalId = res._id;
         setLastSavedId(finalId);
       } else {
         // If it was already saved, we must update it with the latest edits before sharing!
-        await updatePptHistory(finalId, { slides, template, fontStyle, prompt });
+        await updatePptHistory(finalId, { slides, template, fontStyle, customColors, prompt });
       }
 
       if (finalId) {
@@ -1597,6 +1640,25 @@ export default function Aippt() {
     setShareUrl(null);
     setError("");
     setStep("input");
+  };
+
+  const handleExplicitSave = async () => {
+    setIsSavingExplicit(true);
+    try {
+      if (lastSavedId) {
+        await updatePptHistory(lastSavedId, { slides, template, fontStyle, customColors, prompt });
+      } else {
+        const res = await savePptHistory({ prompt, slideCount, template, fontStyle, customColors, slides });
+        if (res) setLastSavedId(res._id);
+      }
+      setGenStatus({ ...genStatus, msg: "✅ Edits saved to history!" });
+      setTimeout(() => setGenStatus(prev => ({ ...prev, msg: "" })), 3000);
+    } catch (e) {
+      console.error("Save failed", e);
+      setError("Failed to save to history.");
+    } finally {
+      setIsSavingExplicit(false);
+    }
   };
 
   // ─── Render ─────────────────────────────────────────────────────────────────
@@ -2220,6 +2282,12 @@ export default function Aippt() {
                 >
                   ✨ Edit All
                 </button>
+                <button 
+                  className="flex items-center gap-2 px-3 py-2 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 font-bold rounded-lg border border-emerald-500/30 transition-all text-xs active:scale-95 whitespace-nowrap" 
+                  onClick={handleExplicitSave} disabled={isSavingExplicit} title="Save Edits to History"
+                >
+                  {isSavingExplicit ? <span className="w-3 h-3 border-2 border-emerald-400/30 border-t-emerald-400 rounded-full animate-spin" /> : "💾"} Save
+                </button>
               </div>
 
               <div className="flex items-center gap-2">
@@ -2371,11 +2439,13 @@ export default function Aippt() {
              setPrompt(item.prompt);
              setTemplate(item.template);
              setFontStyle(item.fontStyle);
+             setCustomColors(item.customColors || null);
              setSlideCount(item.slideCount);
              setSlides(item.slides);
              setActiveSlide(0);
              setStep("preview");
              setShowHistory(false);
+             setLastSavedId(item._id);
            }}
         />
       )}

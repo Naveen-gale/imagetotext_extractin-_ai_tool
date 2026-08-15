@@ -7,6 +7,7 @@ const pptHistorySchema = new mongoose.Schema({
     slideCount: { type: Number, required: true },
     template: { type: String, required: true },
     fontStyle: { type: String, required: true },
+    customColors: { type: Object, required: false },
     slides: { type: Array, required: true },
     createdAt: { type: Date, default: Date.now },
 });

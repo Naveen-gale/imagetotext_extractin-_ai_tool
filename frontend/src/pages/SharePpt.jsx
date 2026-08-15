@@ -6,9 +6,11 @@ import { Rnd } from "react-rnd";
 import { getPptHistoryById, savePptHistory, editSingleSlideData, updatePptHistory, editPptData } from "../utils/api";
 import { generatePptx, TEMPLATES } from "../utils/pptGenerator";
 import { compileSlideToElements } from "../utils/templateCompiler";
+import AnimationEngine from "../animations/AnimationEngine";
+import { getReadableTextColor } from "../utils/textColor";
 
 // ── Slide Renderer (standalone, used in both preview and thumbnail) ────────────
-function SlideView({ slide, tmpl, small = false, index = 0, total = 1 }) {
+function SlideViewInner({ slide, tmpl, small = false, index = 0, total = 1 }) {
   if (slide.elements && slide.elements.length > 0) {
     const S = small ? 0.35 : 1;
     return (
@@ -30,12 +32,19 @@ function SlideView({ slide, tmpl, small = false, index = 0, total = 1 }) {
     );
   }
 
+  const bgToUse = slide.bgColor || tmpl.bg;
+  const getCol = (type) => getReadableTextColor({
+    predictedColor: tmpl[type],
+    backgroundColor: bgToUse,
+    theme: tmpl
+  });
+
   const bg         = `#${tmpl.bg}`;
-  const accent     = `#${tmpl.accent}`;
-  const titleClr   = `#${tmpl.title}`;
-  const bodyClr    = `#${tmpl.body}`;
-  const hlClr      = `#${tmpl.highlight || tmpl.title}`;
-  const subClr     = `#${tmpl.sub}`;
+  const accent     = `#${tmpl.accent || "3b82f6"}`;
+  const titleClr   = getCol('title');
+  const bodyClr    = getCol('body');
+  const subClr     = getCol('sub');
+  const hlClr      = `#${tmpl.highlight || tmpl.accent || "3b82f6"}`;
 
   // Scale font sizes for thumbnail vs full view
   const S = small ? 0.35 : 1;
@@ -53,7 +62,8 @@ function SlideView({ slide, tmpl, small = false, index = 0, total = 1 }) {
     quoteText:  `${Math.max(14, 32 * S)}px`,
   };
 
-  const base  = { position:"relative", width:"100%", height:"100%", background:bg, overflow:"hidden", fontFamily:"'Segoe UI',Calibri,Arial,sans-serif" };
+  const containerClass = !small ? "slide-content-container" : "";
+  const base  = { position:"relative", width:"100%", height:"100%", overflow:"hidden", fontFamily:"'Segoe UI',Calibri,Arial,sans-serif" };
   const inner = { position:"absolute", inset:0, display:"flex", flexDirection:"column", padding: small ? "6% 7% 10%" : "3.5% 4.5% 6%", boxSizing:"border-box" };
 
   const AccentBars = () => (
@@ -96,7 +106,7 @@ function SlideView({ slide, tmpl, small = false, index = 0, total = 1 }) {
     /* ── TITLE ── */
     case "title":
       return (
-        <div style={base}>
+        <div style={base} className={containerClass} key={index}>
           <AccentBars />
           <div style={{ position:"absolute", right:"-6%", top:"-14%", width:"48%", aspectRatio:"1", borderRadius:"50%", background:accent, opacity:0.07 }} />
           <div style={{ position:"absolute", left:"-3%", bottom:"-10%", width:"28%", aspectRatio:"1", borderRadius:"50%", background:accent, opacity:0.05 }} />
@@ -112,7 +122,7 @@ function SlideView({ slide, tmpl, small = false, index = 0, total = 1 }) {
     /* ── SECTION ── */
     case "section":
       return (
-        <div style={base}>
+        <div style={base} className={containerClass} key={index}>
           <div style={{ position:"absolute", inset:"28% 0", background:accent, opacity:0.09 }} />
           <AccentBars />
           {slide.sectionNumber && (
@@ -150,7 +160,7 @@ function SlideView({ slide, tmpl, small = false, index = 0, total = 1 }) {
     case "quote":
     case "callout":
       return (
-        <div style={base}>
+        <div style={base} className={containerClass} key={index}>
           <AccentBars />
           <div style={{ position:"absolute", top:"5%", left:"3%", fontSize: small ? "30px" : "90px", color:accent, opacity:0.13, fontFamily:"serif", lineHeight:1 }}>"</div>
           <div style={{ ...inner, alignItems:"center", justifyContent:"center", textAlign:"center", gap: small ? "5px" : "14px" }}>
@@ -339,7 +349,7 @@ function SlideView({ slide, tmpl, small = false, index = 0, total = 1 }) {
     /* ── IMAGE-FULL ── */
     case "image-full":
       return (
-        <div style={base}>
+        <div style={base} className={containerClass} key={index}>
           {slide.image && <img src={slide.image} alt={slide.title} style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover" }} />}
           <div style={{ position:"absolute", bottom:0, left:0, right:0, padding: small ? "4% 5%" : "4% 5%", background:"linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%)" }}>
             <div style={{ fontSize: small ? "10px" : "28px", fontWeight:900, color:"#ffffff" }}>{slide.title}</div>
@@ -392,6 +402,17 @@ function SlideView({ slide, tmpl, small = false, index = 0, total = 1 }) {
       );
     }
   }
+}
+
+// Wrapper to provide background animations
+function SlideView({ slide, tmpl, templateKey, small = false, index = 0, total = 1 }) {
+  return (
+    <div style={{ width: "100%", height: "100%", backgroundColor: slide.bgColor ? slide.bgColor : `#${tmpl.bg}` }}>
+      <AnimationEngine themeKey={templateKey} isPreview={small} customBg={slide.bgColor}>
+        <SlideViewInner slide={slide} tmpl={tmpl} small={small} index={index} total={total} />
+      </AnimationEngine>
+    </div>
+  );
 }
 
 // ── Slide Editor Panel ──────────────────────────────────────────────────────
@@ -859,7 +880,7 @@ export default function SharePpt() {
               >
                 {/* Mini preview */}
                 <div className="aspect-video w-full relative overflow-hidden" style={{ background: `#${tmpl.bg}` }}>
-                  <SlideView slide={s} tmpl={tmpl} small={true} />
+                  <SlideView slide={s} tmpl={tmpl} templateKey={data.template} small={true} />
                 </div>
                 {/* Badge */}
                 <div className={`px-2 py-0.5 text-[8px] font-black uppercase tracking-widest truncate ${

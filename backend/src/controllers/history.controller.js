@@ -58,11 +58,18 @@ export const updateHistory = async (req, res) => {
              return res.status(403).json({ success: false, message: "You don't have permission to edit this item" });
         }
         
-        // Only allow updating slides, prompt, template, fontStyle
-        if (req.body.slides) historyItem.slides = req.body.slides;
-        if (req.body.template) historyItem.template = req.body.template;
-        if (req.body.fontStyle) historyItem.fontStyle = req.body.fontStyle;
-        if (req.body.prompt) historyItem.prompt = req.body.prompt;
+        // Only allow updating slides, prompt, template, fontStyle, customColors
+        if (req.body.slides !== undefined) {
+            historyItem.slides = req.body.slides;
+            historyItem.markModified('slides');
+        }
+        if (req.body.template !== undefined) historyItem.template = req.body.template;
+        if (req.body.fontStyle !== undefined) historyItem.fontStyle = req.body.fontStyle;
+        if (req.body.prompt !== undefined) historyItem.prompt = req.body.prompt;
+        if (req.body.customColors !== undefined) {
+            historyItem.customColors = req.body.customColors;
+            historyItem.markModified('customColors');
+        }
         
         // If it was a legacy item, we can now claim it for this user!
         if (!historyItem.userId) {

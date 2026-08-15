@@ -982,20 +982,21 @@ ${styleContext}${learningContext}${structureContext}`;
 export const predictThemeAi = async (prompt) => {
     const themes = ["Modern Sleek", "Vibrant Gradient", "Minimalist Light", "Midnight Neon", "Executive Blue", "Cyber Future", "Eco Nature", "Royal Gold", "Candy Pop", "Scholar Paper", "Abstract Glass", "High Impact", "Luxury Obsidian", "Neon Nights", "Glassmorphism Blur", "Earthy Neutrals"];
     try {
-        const response = await callAiWithFallback({
-            model: "llama-3.1-8b-instant",
-            messages: [
-                { role: "system", content: `You are an expert presentation designer. Predict the best design theme for the following presentation topic from this list: ${themes.join(', ')}. Return ONLY the exact theme name.` },
-                { role: "user", content: `Topic: ${prompt}` },
-            ],
-            max_tokens: 50,
-            temperature: 0.2,
+        const response = await fetch("http://localhost:5001/predict-theme", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt })
         });
-        const theme = response.choices[0]?.message?.content?.trim() || "Executive Blue";
-        const cleanTheme = themes.find(t => theme.toLowerCase().includes(t.toLowerCase())) || "Executive Blue";
+        
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        
+        const data = await response.json();
+        const theme = data.theme || "Executive Blue";
+        
+        const cleanTheme = themes.find(t => theme.toLowerCase().includes(t.toLowerCase())) || theme;
         return cleanTheme;
     } catch (error) {
-        console.warn(`Groq predictTheme Failed (${error.message})`);
+        console.warn(`Flask predictTheme Failed (${error.message})`);
         return "Executive Blue";
     }
 };
@@ -1004,20 +1005,19 @@ export const predictThemeAi = async (prompt) => {
  * Predict Structure using Groq
  */
 export const predictStructureAi = async (prompt) => {
-
     try {
-        const response = await callAiWithFallback({
-            model: "llama-3.1-8b-instant",
-            messages: [
-                { role: "system", content: "Predict the best narrative structure (e.g., 'Problem-Solution with Data Evidence', 'Chronological Journey', 'High-Impact Persuasive Pitch', 'Deep Educational Deep-Dive') for a presentation about the user's topic. Make it descriptive to guide slide types. Return ONLY the structure name, no quotes, no extra text." },
-                { role: "user", content: `Topic: ${prompt}` },
-            ],
-            max_tokens: 50,
-            temperature: 0.2,
+        const response = await fetch("http://localhost:5001/predict-structure", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt })
         });
-        return response.choices[0]?.message?.content?.trim() || "Standard";
+
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+        const data = await response.json();
+        return data.structure || "Standard";
     } catch (error) {
-        console.warn(`Groq predictStructure Failed (${error.message})`);
+        console.warn(`Flask predictStructure Failed (${error.message})`);
         return "Standard"; // fallback
     }
 };
