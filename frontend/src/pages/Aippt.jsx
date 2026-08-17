@@ -425,6 +425,25 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
     });
   };
 
+  
+  const updateCustomColor = (field, color) => {
+    const layout = slide.customStyles || {};
+    onUpdateSlide(currentIndex, {
+      ...slide,
+      customStyles: { ...layout, [field]: { ...layout[field], color } }
+    });
+  };
+
+  const updateArrayColor = (field, index, color) => {
+    const layout = slide.customStyles || {};
+    const arr = [...(layout[field] || [])];
+    arr[index] = { ...arr[index], color };
+    onUpdateSlide(currentIndex, {
+      ...slide,
+      customStyles: { ...layout, [field]: arr }
+    });
+  };
+
   const updateCustomSize = (field, size) => {
     onUpdateSlide(currentIndex, { 
       ...slide, 
@@ -748,13 +767,13 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
               <EditableText 
                 value={slide.title} onChange={(v) => updateField("title", v)}
                 pos={slide.layout?.text?.title} onPosChange={(p) => updatePos("title", p)}
-                baseSize={56} fontSize={slide.customStyles?.title?.fontSize} onSizeChange={(s) => updateCustomSize("title", s)}
+                baseSize={56} fontSize={slide.customStyles?.title?.fontSize} onSizeChange={(s) => updateCustomSize("title", s)} color={slide.customStyles?.title?.color} onColorChange={(c) => updateCustomColor("title", c)}
                 className="font-black mb-6 w-full text-center flex-shrink-0" style={{ color: tTitle, lineHeight: 1.2, fontFamily: "'Space Grotesk', sans-serif" }} 
               />
               <EditableText 
                 value={slide.subtitle || ""} onChange={(v) => updateField("subtitle", v)}
                 pos={slide.layout?.text?.subtitle} onPosChange={(p) => updatePos("subtitle", p)}
-                baseSize={30} fontSize={slide.customStyles?.subtitle?.fontSize} onSizeChange={(s) => updateCustomSize("subtitle", s)}
+                baseSize={30} fontSize={slide.customStyles?.subtitle?.fontSize} onSizeChange={(s) => updateCustomSize("subtitle", s)} color={slide.customStyles?.subtitle?.color} onColorChange={(c) => updateCustomColor("subtitle", c)}
                 className="font-bold opacity-80 w-full text-center" style={{ color: tSub }} 
               />
             </div>
@@ -764,14 +783,14 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
               <EditableText 
                 value={slide.quote || slide.title || ""} onChange={(v) => updateField("quote", v)}
                 pos={slide.layout?.text?.quote} onPosChange={(p) => updatePos("quote", p)}
-                baseSize={40} fontSize={slide.customStyles?.quote?.fontSize} onSizeChange={(s) => updateCustomSize("quote", s)}
+                baseSize={40} fontSize={slide.customStyles?.quote?.fontSize} onSizeChange={(s) => updateCustomSize("quote", s)} color={slide.customStyles?.quote?.color} onColorChange={(c) => updateCustomColor("quote", c)}
                 className="font-bold italic relative z-10 w-full" style={{ color: tTitle, lineHeight: 1.4 }} 
               />
               <div className="mt-8 text-right relative z-10">
                 <EditableText 
                   value={slide.author || ""} onChange={(v) => updateField("author", v)}
                   pos={slide.layout?.text?.author} onPosChange={(p) => updatePos("author", p)}
-                  baseSize={24} fontSize={slide.customStyles?.author?.fontSize} onSizeChange={(s) => updateCustomSize("author", s)}
+                  baseSize={24} fontSize={slide.customStyles?.author?.fontSize} onSizeChange={(s) => updateCustomSize("author", s)} color={slide.customStyles?.author?.color} onColorChange={(c) => updateCustomColor("author", c)}
                   className="font-black uppercase tracking-[0.2em] inline-block text-right" style={{ color: tSub }} placeholder="Author name"
                 />
               </div>
@@ -781,7 +800,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
               <EditableText 
                 value={slide.title} onChange={(v) => updateField("title", v)}
                 pos={slide.layout?.text?.title} onPosChange={(p) => updatePos("title", p)}
-                baseSize={48} fontSize={slide.customStyles?.title?.fontSize} onSizeChange={(s) => updateCustomSize("title", s)}
+                baseSize={48} fontSize={slide.customStyles?.title?.fontSize} onSizeChange={(s) => updateCustomSize("title", s)} color={slide.customStyles?.title?.color} onColorChange={(c) => updateCustomColor("title", c)}
                 component="h2" className="font-black mb-8 border-b-2 pb-4 w-full flex justify-between items-center" 
                 style={{ color: tmpl.highlight.startsWith("#") ? tmpl.highlight : `#${tmpl.highlight}`, borderColor: (tmpl.accent.startsWith("#") ? tmpl.accent : `#${tmpl.accent}`) + "33" }} 
               >
@@ -808,13 +827,13 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
                      <EditableText 
                         value={s.value} onChange={(v) => updateObjArrayField("stats", i, "value", v)}
                         pos={slide.layout?.text?.stats_val?.[i]} onPosChange={(p) => updateArrayPos("stats_val", i, p)}
-                        baseSize={64} fontSize={slide.customStyles?.stats_val?.[i]?.fontSize} onSizeChange={(sz) => updateArraySize("stats_val", i, sz)}
+                        baseSize={64} fontSize={slide.customStyles?.stats_val?.[i]?.fontSize} onSizeChange={(sz) => updateArraySize("stats_val", i, sz)} color={slide.customStyles?.stats_val?.[i]?.color} onColorChange={(c) => updateArrayColor("stats_val", i, c)}
                         className="font-black w-full" style={{ color: fmtCol(tmpl.accent), lineHeight: 1 }} 
                      />
                      <div className="mt-2">
                        <EditableText 
                           value={s.label} onChange={(v) => updateObjArrayField("stats", i, "label", v)}
-                          baseSize={20} fontSize={slide.customStyles?.stats_lbl?.[i]?.fontSize} onSizeChange={(sz) => updateArraySize("stats_lbl", i, sz)}
+                          baseSize={20} fontSize={slide.customStyles?.stats_lbl?.[i]?.fontSize} onSizeChange={(sz) => updateArraySize("stats_lbl", i, sz)} color={slide.customStyles?.stats_lbl?.[i]?.color} onColorChange={(c) => updateArrayColor("stats_lbl", i, c)}
                           className="font-bold opacity-80 uppercase tracking-widest w-full" style={{ color: tBody }} 
                        />
                      </div>
@@ -827,7 +846,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
               <EditableText 
                 value={slide.title} onChange={(v) => updateField("title", v)}
                 pos={slide.layout?.text?.title} onPosChange={(p) => updatePos("title", p)}
-                baseSize={48} fontSize={slide.customStyles?.title?.fontSize} onSizeChange={(s) => updateCustomSize("title", s)}
+                baseSize={48} fontSize={slide.customStyles?.title?.fontSize} onSizeChange={(s) => updateCustomSize("title", s)} color={slide.customStyles?.title?.color} onColorChange={(c) => updateCustomColor("title", c)}
                 component="h2" className="font-black mb-8 border-b-2 pb-4 w-full" style={{ color: fmtCol(tmpl.highlight), borderColor: fmtCol(tmpl.accent) + "33" }} 
               />
               <div className="flex flex-1 gap-8">
@@ -836,7 +855,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
                     className="font-black uppercase tracking-widest w-full mb-2" style={{ color: tmpl.accent.startsWith("#") ? tmpl.accent : `#${tmpl.accent}` }} 
                     value={slide.leftColumn?.heading} onChange={(v) => updateColField("leftColumn", "heading", v)}
                     pos={slide.layout?.text?.leftHead} onPosChange={(p) => updatePos("leftHead", p)}
-                    baseSize={24} fontSize={slide.customStyles?.leftHead?.fontSize} onSizeChange={(s) => updateCustomSize("leftHead", s)}
+                    baseSize={24} fontSize={slide.customStyles?.leftHead?.fontSize} onSizeChange={(s) => updateCustomSize("leftHead", s)} color={slide.customStyles?.leftHead?.color} onColorChange={(c) => updateCustomColor("leftHead", c)}
                   />
                   {(slide.leftColumn?.bullets || []).map((b, i) => (
                     <div key={i} className="flex gap-4 group relative">
@@ -846,7 +865,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
                         className="font-medium leading-relaxed w-full" style={{ color: tmpl.body.startsWith("#") ? tmpl.body : `#${tmpl.body}` }} 
                         value={b} onChange={(v) => updateColField("leftColumn", "bullets", v, i)}
                         pos={slide.layout?.text?.leftBullets?.[i]} onPosChange={(p) => updateArrayPos("leftBullets", i, p)}
-                        baseSize={24} fontSize={slide.customStyles?.leftBullets?.[i]?.fontSize} onSizeChange={(s) => updateArraySize("leftBullets", i, s)}
+                        baseSize={24} fontSize={slide.customStyles?.leftBullets?.[i]?.fontSize} onSizeChange={(s) => updateArraySize("leftBullets", i, s)} color={slide.customStyles?.leftBullets?.[i]?.color} onColorChange={(c) => updateArrayColor("leftBullets", i, c)}
                       />
                     </div>
                   ))}
@@ -858,7 +877,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
                     className="font-black uppercase tracking-widest w-full mb-2" style={{ color: tmpl.accent.startsWith("#") ? tmpl.accent : `#${tmpl.accent}` }} 
                     value={slide.rightColumn?.heading} onChange={(v) => updateColField("rightColumn", "heading", v)}
                     pos={slide.layout?.text?.rightHead} onPosChange={(p) => updatePos("rightHead", p)}
-                    baseSize={24} fontSize={slide.customStyles?.rightHead?.fontSize} onSizeChange={(s) => updateCustomSize("rightHead", s)}
+                    baseSize={24} fontSize={slide.customStyles?.rightHead?.fontSize} onSizeChange={(s) => updateCustomSize("rightHead", s)} color={slide.customStyles?.rightHead?.color} onColorChange={(c) => updateCustomColor("rightHead", c)}
                   />
                   {(slide.rightColumn?.bullets || []).map((b, i) => (
                     <div key={i} className="flex gap-4 group relative">
@@ -868,7 +887,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
                         className="font-medium leading-relaxed w-full" style={{ color: tmpl.body.startsWith("#") ? tmpl.body : `#${tmpl.body}` }} 
                         value={b} onChange={(v) => updateColField("rightColumn", "bullets", v, i)}
                         pos={slide.layout?.text?.rightBullets?.[i]} onPosChange={(p) => updateArrayPos("rightBullets", i, p)}
-                        baseSize={24} fontSize={slide.customStyles?.rightBullets?.[i]?.fontSize} onSizeChange={(s) => updateArraySize("rightBullets", i, s)}
+                        baseSize={24} fontSize={slide.customStyles?.rightBullets?.[i]?.fontSize} onSizeChange={(s) => updateArraySize("rightBullets", i, s)} color={slide.customStyles?.rightBullets?.[i]?.color} onColorChange={(c) => updateArrayColor("rightBullets", i, c)}
                       />
                     </div>
                   ))}
@@ -881,7 +900,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
               <EditableText 
                 value={slide.title} onChange={(v) => updateField("title", v)}
                 pos={slide.layout?.text?.title} onPosChange={(p) => updatePos("title", p)}
-                baseSize={48} fontSize={slide.customStyles?.title?.fontSize} onSizeChange={(s) => updateCustomSize("title", s)}
+                baseSize={48} fontSize={slide.customStyles?.title?.fontSize} onSizeChange={(s) => updateCustomSize("title", s)} color={slide.customStyles?.title?.color} onColorChange={(c) => updateCustomColor("title", c)}
                 component="h2" className="font-black mb-8 border-b-2 pb-4 w-full" style={{ color: fmtCol(tmpl.highlight), borderColor: fmtCol(tmpl.accent) + "33" }} 
               />
               <button onClick={() => addItem("timelineItems", { year: "2025", event: "New event" })} className="text-xs text-slate-500 mb-4">+ Add Event</button>
@@ -895,13 +914,13 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
                        className="font-black uppercase tracking-widest w-full sm:w-[120px] flex-shrink-0" style={{ color: fmtCol(tmpl.accent) }}
                        value={t.year} onChange={(v) => updateObjArrayField("timelineItems", i, "year", v)}
                        pos={slide.layout?.text?.tl_year?.[i]} onPosChange={(p) => updateArrayPos("tl_year", i, p)}
-                       baseSize={28} fontSize={slide.customStyles?.tl_year?.[i]?.fontSize} onSizeChange={(s) => updateArraySize("tl_year", i, s)}
+                       baseSize={28} fontSize={slide.customStyles?.tl_year?.[i]?.fontSize} onSizeChange={(s) => updateArraySize("tl_year", i, s)} color={slide.customStyles?.tl_year?.[i]?.color} onColorChange={(c) => updateArrayColor("tl_year", i, c)}
                     />
                     <EditableText 
                        className="font-medium w-full" style={{ color: tBody }}
                        value={t.event} onChange={(v) => updateObjArrayField("timelineItems", i, "event", v)}
                        pos={slide.layout?.text?.tl_evt?.[i]} onPosChange={(p) => updateArrayPos("tl_evt", i, p)}
-                       baseSize={24} fontSize={slide.customStyles?.tl_evt?.[i]?.fontSize} onSizeChange={(s) => updateArraySize("tl_evt", i, s)}
+                       baseSize={24} fontSize={slide.customStyles?.tl_evt?.[i]?.fontSize} onSizeChange={(s) => updateArraySize("tl_evt", i, s)} color={slide.customStyles?.tl_evt?.[i]?.color} onColorChange={(c) => updateArrayColor("tl_evt", i, c)}
                     />
                   </div>
                 ))}
@@ -912,7 +931,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
               <EditableText 
                 value={slide.title} onChange={(v) => updateField("title", v)}
                 pos={slide.layout?.text?.title} onPosChange={(p) => updatePos("title", p)}
-                baseSize={48} fontSize={slide.customStyles?.title?.fontSize} onSizeChange={(s) => updateCustomSize("title", s)}
+                baseSize={48} fontSize={slide.customStyles?.title?.fontSize} onSizeChange={(s) => updateCustomSize("title", s)} color={slide.customStyles?.title?.color} onColorChange={(c) => updateCustomColor("title", c)}
                 component="h2" className="font-black mb-8 border-b-2 pb-4 w-full flex justify-between items-center" style={{ color: tmpl.highlight.startsWith("#") ? tmpl.highlight : `#${tmpl.highlight}`, borderColor: (tmpl.accent.startsWith("#") ? tmpl.accent : `#${tmpl.accent}`) + "33" }} 
               >
                 <div className="flex gap-2">
@@ -945,7 +964,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
                         <EditableText 
                           value={b} onChange={(v) => updateArrayField("bullets", i, v)}
                           pos={slide.layout?.text?.bullets?.[i]} onPosChange={(p) => updateArrayPos("bullets", i, p)}
-                          baseSize={24} fontSize={slide.customStyles?.bullets?.[i]?.fontSize} onSizeChange={(s) => updateArraySize("bullets", i, s)}
+                          baseSize={24} fontSize={slide.customStyles?.bullets?.[i]?.fontSize} onSizeChange={(s) => updateArraySize("bullets", i, s)} color={slide.customStyles?.bullets?.[i]?.color} onColorChange={(c) => updateArrayColor("bullets", i, c)}
                           className="font-medium leading-relaxed w-full" style={{ color: tBody }}
                         />
                       </div>
@@ -955,7 +974,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
                       <EditableText 
                         value={slide.subtitle} onChange={(v) => updateField("subtitle", v)}
                         pos={slide.layout?.text?.subtitle} onPosChange={(p) => updatePos("subtitle", p)}
-                        baseSize={28} fontSize={slide.customStyles?.subtitle?.fontSize} onSizeChange={(s) => updateCustomSize("subtitle", s)}
+                        baseSize={28} fontSize={slide.customStyles?.subtitle?.fontSize} onSizeChange={(s) => updateCustomSize("subtitle", s)} color={slide.customStyles?.subtitle?.color} onColorChange={(c) => updateCustomColor("subtitle", c)}
                         className="font-bold opacity-80 w-full" style={{ color: tSub }} 
                       />
                       <button onClick={() => updateField("bullets", [slide.subtitle])} className="text-[10px] text-indigo-400">Convert Subtitle to Bullet</button>

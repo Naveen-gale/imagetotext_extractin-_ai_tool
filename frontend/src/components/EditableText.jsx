@@ -8,6 +8,8 @@ export default function EditableText({
   onSizeChange,
   fontSize,
   baseSize,
+  color,
+  onColorChange,
   pos = { x: 0, y: 0 },
   onPosChange,
   placeholder = "Enter text...",
@@ -26,6 +28,7 @@ export default function EditableText({
   const dragControls = useDragControls();
 
   const displaySize = fontSize || baseSize || 30;
+  const displayColor = color || style.color || "#ffffff";
 
   // ── 1. Set DOM value once on mount ──────────────────────────────────────────
   useEffect(() => {
@@ -114,27 +117,46 @@ export default function EditableText({
           // Prevent clicks on toolbar from blurring the editable below
           onMouseDown={(e) => e.preventDefault()}
         >
-          {/* Size controls */}
-          {onSizeChange && (
+          {/* Size and Color controls */}
+          {(onSizeChange || onColorChange) && (
             <div className="flex items-center bg-slate-800 rounded-lg p-0.5">
-              <button
-                className="w-7 h-7 flex items-center justify-center hover:bg-slate-700 text-slate-300 font-black rounded-md text-[10px] transition-all active:scale-90"
-                onClick={() => onSizeChange(displaySize + 4)}
-                title="Increase font size"
-              >
-                A+
-              </button>
-              <div className="px-1.5 text-[9px] font-black text-indigo-400 bg-indigo-500/5 py-1 rounded min-w-[30px] text-center border border-indigo-500/10">
-                {Math.round(displaySize)}
-              </div>
-              <button
-                className="w-7 h-7 flex items-center justify-center hover:bg-slate-700 text-slate-300 font-black rounded-md text-[10px] transition-all active:scale-90"
-                onClick={() => onSizeChange(Math.max(8, displaySize - 4))}
-                title="Decrease font size"
-              >
-                A-
-              </button>
-              <div className="w-px h-4 bg-slate-700 mx-1 flex-shrink-0" />
+              {onSizeChange && (
+                <>
+                  <button
+                    className="w-7 h-7 flex items-center justify-center hover:bg-slate-700 text-slate-300 font-black rounded-md text-[10px] transition-all active:scale-90"
+                    onClick={() => onSizeChange(displaySize + 4)}
+                    title="Increase font size"
+                  >
+                    A+
+                  </button>
+                  <div className="px-1.5 text-[9px] font-black text-indigo-400 bg-indigo-500/5 py-1 rounded min-w-[30px] text-center border border-indigo-500/10">
+                    {Math.round(displaySize)}
+                  </div>
+                  <button
+                    className="w-7 h-7 flex items-center justify-center hover:bg-slate-700 text-slate-300 font-black rounded-md text-[10px] transition-all active:scale-90"
+                    onClick={() => onSizeChange(Math.max(8, displaySize - 4))}
+                    title="Decrease font size"
+                  >
+                    A-
+                  </button>
+                </>
+              )}
+              {onSizeChange && onColorChange && <div className="w-px h-4 bg-slate-700 mx-1 flex-shrink-0" />}
+              {onColorChange && (
+                <div className="relative flex items-center justify-center w-7 h-7 hover:bg-slate-700 rounded-md transition-all group overflow-hidden">
+                   <input 
+                      type="color" 
+                      value={displayColor?.startsWith('#') ? displayColor.substring(0,7) : '#ffffff'} 
+                      onChange={(e) => onColorChange(e.target.value)} 
+                      className="w-full h-full cursor-pointer absolute inset-0 opacity-0"
+                      title="Change text color"
+                   />
+                   <div 
+                     className="w-4 h-4 rounded-full border-2 border-slate-600 shadow-inner pointer-events-none" 
+                     style={{ backgroundColor: displayColor }} 
+                   />
+                </div>
+              )}
             </div>
           )}
 
@@ -205,6 +227,7 @@ export default function EditableText({
         onClick={(e) => e.stopPropagation()}
         style={{
           ...style,
+          color: displayColor,
           fontSize: `${displaySize}px`,
           minWidth: "10px",
           minHeight: "1em",
