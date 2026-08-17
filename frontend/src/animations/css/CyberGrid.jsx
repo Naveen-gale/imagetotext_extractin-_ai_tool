@@ -21,7 +21,10 @@ export default function CyberGrid({ theme, config }) {
           opacity: opacity
         }}
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-transparent to-[#${theme.bg}] z-10 opacity-80" />
+      <div 
+        className="absolute inset-0 z-10 opacity-80" 
+        style={{ backgroundImage: `linear-gradient(to top, transparent, #${theme.bg})` }} 
+      />
       <style>{`
         @keyframes gridMove {
           0% { transform: rotateX(75deg) translateY(0); }
