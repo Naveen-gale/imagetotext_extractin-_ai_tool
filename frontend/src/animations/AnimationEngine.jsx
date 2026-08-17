@@ -4,13 +4,13 @@ import { TEMPLATES } from '../utils/pptGenerator';
 // Lazy load Three.js components to prevent bloating the main bundle
 const ParticleNetwork = lazy(() => import('./three/ParticleNetwork'));
 
-// Static CSS components (cheap to load, can be static imports or lazy)
-const GradientFlow = lazy(() => import('./css/GradientFlow'));
-const FloatingBlobs = lazy(() => import('./css/FloatingBlobs'));
-const ScanLine = lazy(() => import('./css/ScanLine'));
-const Glassmorphism = lazy(() => import('./css/Glassmorphism'));
-const CyberGrid = lazy(() => import('./css/CyberGrid'));
-const Starfield = lazy(() => import('./css/Starfield'));
+// Static CSS components (cheap to load, so we use static imports to avoid Vercel chunk errors)
+import GradientFlow from './css/GradientFlow';
+import FloatingBlobs from './css/FloatingBlobs';
+import ScanLine from './css/ScanLine';
+import Glassmorphism from './css/Glassmorphism';
+import CyberGrid from './css/CyberGrid';
+import Starfield from './css/Starfield';
 
 export default function AnimationEngine({ 
   themeKey = 'corporate', 
