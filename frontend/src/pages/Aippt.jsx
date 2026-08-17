@@ -324,7 +324,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
   }, [onNext, onPrev, onClose, isFullscreen]);
 
   const handleEditSubmit = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     if (!editPrompt.trim()) return;
     setIsEditing(true);
     setEditError("");
@@ -337,8 +337,19 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
       } catch (ragErr) {
         // Fall back to original Node.js edit if RAG fails
         console.warn("[RAG] Slide edit fallback:", ragErr.message);
-        const improved = await editSingleSlideData(editPrompt, slide);
-        updatedSlide = improved;
+        try {
+          const improved = await editSingleSlideData(editPrompt, slide);
+          updatedSlide = improved;
+        } catch (nodeErr) {
+          console.warn("[Node] Slide edit fallback:", nodeErr.message);
+          // Final fallback: use the robust full PPT edit API for this single slide
+          const improvedDeck = await editPptData(editPrompt, [slide]);
+          if (improvedDeck && improvedDeck.length > 0) {
+            updatedSlide = improvedDeck[0];
+          } else {
+            throw new Error("Backend AI services are currently unavailable. Please check if they are running.");
+          }
+        }
       }
       
       // Preserve custom styles if AI missed them
@@ -358,7 +369,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
       
       setEditPrompt("");
     } catch (err) {
-      setEditError(err.message);
+      setEditError(err.message || "Failed to update slide. Please try again.");
     } finally {
       setIsEditing(false);
     }
@@ -650,12 +661,17 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
                <button 
                  type="submit" 
                  disabled={isEditing || !editPrompt.trim()}
-                 className="px-6 py-3 w-full sm:w-auto bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 text-white font-black uppercase tracking-widest text-xs rounded-full transition-all shadow-lg active:scale-95"
+                 className="px-6 py-3 w-full sm:w-auto bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 text-white font-black uppercase tracking-widest text-xs rounded-full transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"
                >
-                 {isEditing ? "Editing..." : "Update AI"}
+                 {isEditing ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Thinking...</> : "Update AI"}
                </button>
            </form>
-           {editError && <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-red-500 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-xl">⚠️ {editError}</div>}
+           {editError && (
+             <div className="absolute -top-16 left-1/2 -translate-x-1/2 bg-red-500/90 backdrop-blur-md text-white px-4 py-2 rounded-xl text-xs font-bold shadow-xl border border-red-400/50 flex items-center gap-3">
+               <span>⚠️ {editError}</span>
+               <button onClick={handleEditSubmit} className="bg-white/20 hover:bg-white/30 px-2 py-1 rounded transition-colors">Retry</button>
+             </div>
+           )}
         </div>
 
         <div
@@ -677,19 +693,9 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
           </button>
 
           <AnimatePresence mode="wait">
-            {isEditing && (
-              <motion.div 
-                initial={{ opacity: 0 }} 
-                animate={{ opacity: 1 }} 
-                exit={{ opacity: 0 }}
-                className="absolute inset-0 z-40 bg-slate-950/60 backdrop-blur-md flex flex-col items-center justify-center text-white"
-              >
-                <div className="w-16 h-16 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin mb-4" />
-                <div className="text-xl font-black tracking-widest uppercase animate-pulse">AI is thinking...</div>
-                <div className="text-slate-400 text-sm mt-2">Updating your presentation deck</div>
-              </motion.div>
-            )}
-
+            {/* The full-screen blocking spinner is removed to allow typing/reading while it updates, 
+                as the button itself now shows the loading state */}
+            
             <motion.div
               key={currentIndex}
               initial={{ x: 300, opacity: 0 }}
@@ -705,8 +711,8 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
           {((!slide.title && !slide.quote && !slide.bullets?.length && !slide.stats?.length && !slide.timelineItems?.length) || slide.type === "blank") ? (
              <div className="flex flex-col items-center justify-center h-full p-20 animate-in zoom-in duration-500">
                 <div className="text-4xl mb-4" style={{ color: fmtCol(tmpl.accent) }}>🏗️</div>
-                <h2 className="text-3xl font-black mb-2" style={{ color: fmtCol(tmpl.title) }}>Empty Slide</h2>
-                <p className="text-sm opacity-60 mb-12 text-center max-w-md" style={{ color: fmtCol(tmpl.sub) }}>Start building your manual slide by selecting a layout or adding elements below.</p>
+                <h2 className="text-3xl font-black mb-2" style={{ color: tTitle }}>Empty Slide</h2>
+                <p className="text-sm opacity-60 mb-12 text-center max-w-md" style={{ color: tSub }}>Start building your manual slide by selecting a layout or adding elements below.</p>
                 
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6 w-full max-w-4xl">
                   {[
@@ -743,13 +749,13 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
                 value={slide.title} onChange={(v) => updateField("title", v)}
                 pos={slide.layout?.text?.title} onPosChange={(p) => updatePos("title", p)}
                 baseSize={56} fontSize={slide.customStyles?.title?.fontSize} onSizeChange={(s) => updateCustomSize("title", s)}
-                className="font-black mb-6 w-full text-center flex-shrink-0" style={{ color: fmtCol(tmpl.title), lineHeight: 1.2, fontFamily: "'Space Grotesk', sans-serif" }} 
+                className="font-black mb-6 w-full text-center flex-shrink-0" style={{ color: tTitle, lineHeight: 1.2, fontFamily: "'Space Grotesk', sans-serif" }} 
               />
               <EditableText 
                 value={slide.subtitle || ""} onChange={(v) => updateField("subtitle", v)}
                 pos={slide.layout?.text?.subtitle} onPosChange={(p) => updatePos("subtitle", p)}
                 baseSize={30} fontSize={slide.customStyles?.subtitle?.fontSize} onSizeChange={(s) => updateCustomSize("subtitle", s)}
-                className="font-bold opacity-80 w-full text-center" style={{ color: fmtCol(tmpl.sub) }} 
+                className="font-bold opacity-80 w-full text-center" style={{ color: tSub }} 
               />
             </div>
           ) : slide.type === "quote" ? (
@@ -759,14 +765,14 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
                 value={slide.quote || slide.title || ""} onChange={(v) => updateField("quote", v)}
                 pos={slide.layout?.text?.quote} onPosChange={(p) => updatePos("quote", p)}
                 baseSize={40} fontSize={slide.customStyles?.quote?.fontSize} onSizeChange={(s) => updateCustomSize("quote", s)}
-                className="font-bold italic relative z-10 w-full" style={{ color: fmtCol(tmpl.title), lineHeight: 1.4 }} 
+                className="font-bold italic relative z-10 w-full" style={{ color: tTitle, lineHeight: 1.4 }} 
               />
               <div className="mt-8 text-right relative z-10">
                 <EditableText 
                   value={slide.author || ""} onChange={(v) => updateField("author", v)}
                   pos={slide.layout?.text?.author} onPosChange={(p) => updatePos("author", p)}
                   baseSize={24} fontSize={slide.customStyles?.author?.fontSize} onSizeChange={(s) => updateCustomSize("author", s)}
-                  className="font-black uppercase tracking-[0.2em] inline-block text-right" style={{ color: fmtCol(tmpl.sub) }} placeholder="Author name"
+                  className="font-black uppercase tracking-[0.2em] inline-block text-right" style={{ color: tSub }} placeholder="Author name"
                 />
               </div>
             </div>
@@ -809,7 +815,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
                        <EditableText 
                           value={s.label} onChange={(v) => updateObjArrayField("stats", i, "label", v)}
                           baseSize={20} fontSize={slide.customStyles?.stats_lbl?.[i]?.fontSize} onSizeChange={(sz) => updateArraySize("stats_lbl", i, sz)}
-                          className="font-bold opacity-80 uppercase tracking-widest w-full" style={{ color: fmtCol(tmpl.body) }} 
+                          className="font-bold opacity-80 uppercase tracking-widest w-full" style={{ color: tBody }} 
                        />
                      </div>
                   </div>
@@ -892,7 +898,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
                        baseSize={28} fontSize={slide.customStyles?.tl_year?.[i]?.fontSize} onSizeChange={(s) => updateArraySize("tl_year", i, s)}
                     />
                     <EditableText 
-                       className="font-medium w-full" style={{ color: fmtCol(tmpl.body) }}
+                       className="font-medium w-full" style={{ color: tBody }}
                        value={t.event} onChange={(v) => updateObjArrayField("timelineItems", i, "event", v)}
                        pos={slide.layout?.text?.tl_evt?.[i]} onPosChange={(p) => updateArrayPos("tl_evt", i, p)}
                        baseSize={24} fontSize={slide.customStyles?.tl_evt?.[i]?.fontSize} onSizeChange={(s) => updateArraySize("tl_evt", i, s)}
@@ -940,7 +946,7 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
                           value={b} onChange={(v) => updateArrayField("bullets", i, v)}
                           pos={slide.layout?.text?.bullets?.[i]} onPosChange={(p) => updateArrayPos("bullets", i, p)}
                           baseSize={24} fontSize={slide.customStyles?.bullets?.[i]?.fontSize} onSizeChange={(s) => updateArraySize("bullets", i, s)}
-                          className="font-medium leading-relaxed w-full" style={{ color: fmtCol(tmpl.body) }}
+                          className="font-medium leading-relaxed w-full" style={{ color: tBody }}
                         />
                       </div>
                     ))
@@ -950,12 +956,12 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
                         value={slide.subtitle} onChange={(v) => updateField("subtitle", v)}
                         pos={slide.layout?.text?.subtitle} onPosChange={(p) => updatePos("subtitle", p)}
                         baseSize={28} fontSize={slide.customStyles?.subtitle?.fontSize} onSizeChange={(s) => updateCustomSize("subtitle", s)}
-                        className="font-bold opacity-80 w-full" style={{ color: fmtCol(tmpl.sub) }} 
+                        className="font-bold opacity-80 w-full" style={{ color: tSub }} 
                       />
                       <button onClick={() => updateField("bullets", [slide.subtitle])} className="text-[10px] text-indigo-400">Convert Subtitle to Bullet</button>
                     </div>
                   ) : (
-                    slide.title ? null : <div className="opacity-40 italic text-2xl font-medium" style={{ color: fmtCol(tmpl.body) }}>Adding detailed content...</div>
+                    slide.title ? null : <div className="opacity-40 italic text-2xl font-medium" style={{ color: tBody }}>Adding detailed content...</div>
                   )}
                 </div>
                 {slide.image && (
@@ -1064,13 +1070,13 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
                       onChange={(v) => updateExtraText(i, v)}
                       baseSize={20}
                       className="font-medium"
-                      style={{ color: fmtCol(tmpl.body) }}
+                      style={{ color: tBody }}
                     />
                   </motion.div>
                 ))}
               </div>
 
-            <div className="absolute bottom-6 right-8 text-sm font-black opacity-30" style={{ color: fmtCol(tmpl.body) }}>{currentIndex + 1}</div>
+            <div className="absolute bottom-6 right-8 text-sm font-black opacity-30" style={{ color: tBody }}>{currentIndex + 1}</div>
 
           </AnimationEngine>
           </motion.div>
