@@ -1,4 +1,4 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useState, useEffect } from 'react';
 import { TEMPLATES } from '../utils/pptGenerator';
 
 // Lazy load Three.js components to prevent bloating the main bundle
@@ -29,6 +29,30 @@ export default function AnimationEngine({
   const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const intensity = prefersReducedMotion ? 0 : (animConfig.intensity !== undefined ? animConfig.intensity : 1);
 
+  // Mouse tracking for parallax effect
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
+  useEffect(() => {
+    // Disable parallax for tiny preview cards to save performance
+    if (isPreview) return;
+
+    const handleMouseMove = (e) => {
+      // Normalize mouse position to range [-1, 1]
+      const x = (e.clientX / window.innerWidth) * 2 - 1;
+      const y = (e.clientY / window.innerHeight) * 2 - 1;
+      setMousePos({ x, y });
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, [isPreview]);
+
+  // Apply a subtle parallax translation to the animation layer
+  const parallaxStyle = isPreview ? {} : {
+    transform: `translate(${mousePos.x * -15}px, ${mousePos.y * -15}px) scale(1.05)`,
+    transition: 'transform 0.15s ease-out'
+  };
+
   // Render the requested animation
   const renderBackground = () => {
     if (intensity === 0 || animType === 'none') {
@@ -40,10 +64,8 @@ export default function AnimationEngine({
 
     return (
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-        {/* Solid background base */}
-        <div className="absolute inset-0 z-0" style={{ backgroundColor: `#${theme.bg}` }} />
-        {/* Subtle animation overlay */}
-        <div className="absolute inset-0 z-0 opacity-20 mix-blend-screen">
+        {/* The animation components render their own background base with parallax */}
+        <div className="absolute inset-0 z-0" style={parallaxStyle}>
           <Suspense fallback={fallback}>
             {animType === 'gradient-flow' && <GradientFlow config={animConfig} theme={theme} />}
             {animType === 'floating-blobs' && <FloatingBlobs config={animConfig} theme={theme} />}
