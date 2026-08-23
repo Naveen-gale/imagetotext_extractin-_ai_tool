@@ -90,3 +90,75 @@ html.lenis-scrolling {
     transform: translateY(0) scale(1); 
   }
 }
+
+/* ── PptSwiper: production-quality slide transition container ────────────────
+   These overrides ensure Swiper fills its parent, slides render at full size,
+   and no default Swiper UI (bullets, arrows) bleeds through.
+   All GPU-compositing hints are applied here for maximum performance.        */
+
+.ppt-swiper-container {
+  /* Fill whatever parent is given */
+  width: 100% !important;
+  height: 100% !important;
+  /* Prevent swiper from breaking the parent's layout */
+  display: block !important;
+  position: absolute !important;
+  inset: 0 !important;
+  /* Performance: compositor layer for the whole swiper region */
+  transform: translateZ(0);
+  /* Prevent Swiper overflow from bleeding */
+  overflow: hidden !important;
+}
+
+.ppt-swiper-container .swiper-wrapper {
+  /* Keep wrapper aligned with container height */
+  align-items: stretch;
+  height: 100%;
+}
+
+.ppt-swiper-container .swiper-slide {
+  /* Each slide fills the full Swiper area */
+  width: 100% !important;
+  height: 100% !important;
+  overflow: hidden;
+  /* GPU layer promotion */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  /* Prevent content from being selectable during swipe */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Restore user-select for text/editable content inside slides */
+.ppt-swiper-container .swiper-slide-active {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* Swiper creative effect: make sure depth positioning is correct */
+.ppt-swiper-container.swiper-creative .swiper-slide-shadow-left,
+.ppt-swiper-container.swiper-creative .swiper-slide-shadow-right {
+  /* Use subtle shadows for depth during creative transitions */
+  opacity: 0.3;
+}
+
+/* Swiper fade effect: ensure both slides stack correctly */
+.ppt-swiper-container.swiper-fade .swiper-slide {
+  pointer-events: none;
+}
+.ppt-swiper-container.swiper-fade .swiper-slide-active {
+  pointer-events: auto;
+}
+
+/* Hide any Swiper navigation/pagination we're not using */
+.ppt-swiper-container .swiper-button-next,
+.ppt-swiper-container .swiper-button-prev,
+.ppt-swiper-container .swiper-pagination {
+  display: none !important;
+}
+
+/* ── Disable text highlight flicker on slide container during touch ─────── */
+.ppt-swiper-container * {
+  -webkit-tap-highlight-color: transparent;
+}

@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { History as HistoryIcon, Rocket, Sparkles, Presentation } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { generatePptData, uploadPptFile, savePptHistory, generatePptOutline, generatePptSlide, analyzeReferencePpt, generateInsertedSlideData, saveAiCorrection, predictTheme, predictStructure, uploadRagFiles, ragEditSlide, editSingleSlideData, uploadImageFile, ragGenerateOutline, ragGenerateSlide, editPptData, updatePptHistory } from "../utils/api";
+import { generatePptData, uploadPptFile, savePptHistory, generatePptOutline, generatePptSlide, analyzeReferencePpt, generateInsertedSlideData, saveAiCorrection, predictTheme, predictStructure, uploadRagFiles, ragEditSlide, ragGenerateOutline, ragGenerateSlide, editSingleSlideData, uploadImageFile, editPptData, updatePptHistory } from "../utils/api";
 import { generatePptx, validateSlides, TEMPLATES, FONT_STYLES } from "../utils/pptGenerator";
 import EditableText from "../components/EditableText";
 import HistoryModal from "../components/modals/HistoryModal";
@@ -281,6 +281,34 @@ function SlidePreview({ slide, template, index, isActive, onClick }) {
 }
 
 
+// ─── Slide transition variants (direction-aware, GPU-accelerated) ──────────────
+// Uses translate3d + opacity ONLY — no layout property animation
+const makeSlideVariants = (direction) => ({
+  initial: {
+    x: direction >= 0 ? "108%" : "-108%",
+    opacity: 0,
+    scale: 0.92,
+  },
+  animate: {
+    x: 0,
+    opacity: 1,
+    scale: 1,
+    transition: {
+      duration: 0.48,
+      ease: [0.22, 1, 0.36, 1], // "expo out" — fast enter, gentle settle
+    },
+  },
+  exit: {
+    x: direction >= 0 ? "-108%" : "108%",
+    opacity: 0,
+    scale: 0.92,
+    transition: {
+      duration: 0.38,
+      ease: [0.36, 0, 0.66, -0.01], // "expo in" — quick, decisive exit
+    },
+  },
+});
+
 // ─── Full-screen preview modal ────────────────────────────────────────────────
 function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlides, onClose, onPrev, onNext, template, customColors, fontStyle }) {
   const tmpl = customColors || TEMPLATES[template] || TEMPLATES.corporate;
@@ -299,10 +327,57 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
   const fmtCol = (c) => c ? (c.startsWith("#") ? c : `#${c}`) : "#ffffff";
   const containerRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  // Track slide navigation direction: +1 = forward, -1 = backward
+  const directionRef = useRef(1);
+  const prevIndexRef = useRef(currentIndex);
+
+  // Update direction whenever currentIndex changes
+  if (currentIndex !== prevIndexRef.current) {
+    directionRef.current = currentIndex > prevIndexRef.current ? 1 : -1;
+    prevIndexRef.current = currentIndex;
+  }
 
   const [editPrompt, setEditPrompt] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [editError, setEditError] = useState("");
+
+  // ── Touch / swipe state for the slide canvas ─────────────────────────────
+  const touchStartXRef = useRef(null);
+  const touchStartYRef = useRef(null);
+  const isSwipingRef = useRef(false);
+
+  const handleTouchStart = useCallback((e) => {
+    const t = e.touches[0];
+    touchStartXRef.current = t.clientX;
+    touchStartYRef.current = t.clientY;
+    isSwipingRef.current = false;
+  }, []);
+
+  const handleTouchMove = useCallback((e) => {
+    if (touchStartXRef.current === null) return;
+    const dx = e.touches[0].clientX - touchStartXRef.current;
+    const dy = e.touches[0].clientY - touchStartYRef.current;
+    // Only lock in horizontal swipe if horizontal delta dominates
+    if (!isSwipingRef.current && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      isSwipingRef.current = true;
+    }
+    if (isSwipingRef.current) {
+      e.preventDefault(); // prevent page scroll during horizontal swipe
+    }
+  }, []);
+
+  const handleTouchEnd = useCallback((e) => {
+    if (touchStartXRef.current === null || !isSwipingRef.current) {
+      touchStartXRef.current = null;
+      return;
+    }
+    const dx = e.changedTouches[0].clientX - touchStartXRef.current;
+    touchStartXRef.current = null;
+    isSwipingRef.current = false;
+    const SWIPE_THRESHOLD = 60; // px needed to commit a swipe
+    if (dx < -SWIPE_THRESHOLD) onNext();        // swipe left → next slide
+    else if (dx > SWIPE_THRESHOLD) onPrev();    // swipe right → prev slide
+  }, [onNext, onPrev]);
 
   useEffect(() => {
     const handleFsChange = () => setIsFullscreen(!!document.fullscreenElement);
@@ -436,8 +511,14 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
 
   const updateArrayColor = (field, index, color) => {
     const layout = slide.customStyles || {};
-    const arr = [...(layout[field] || [])];
-    arr[index] = { ...arr[index], color };
+    const existing = layout[field] || [];
+    // Normalize: customStyles[field] can be an object keyed by index or an array
+    const arr = Array.isArray(existing) ? [...existing] : { ...existing };
+    if (Array.isArray(arr)) {
+      arr[index] = { ...arr[index], color };
+    } else {
+      arr[index] = { ...arr[index], color };
+    }
     onUpdateSlide(currentIndex, {
       ...slide,
       customStyles: { ...layout, [field]: arr }
@@ -696,6 +777,9 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
         <div
           className="flex-1 relative overflow-hidden flex items-center justify-center bg-slate-950 p-1 sm:p-2 mb-4"
           style={{ fontFamily: FONT_STYLES[fontStyle]?.body || "Calibri, sans-serif" }}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
         >
           <button 
             className={`absolute left-4 sm:left-8 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-slate-800/50 hover:bg-slate-700 text-white flex items-center justify-center z-20 backdrop-blur-md transition-all shadow-xl border border-slate-700 disabled:opacity-30 ${isFullscreen ? "opacity-0 hover:opacity-100" : "opacity-100"}`}
@@ -711,17 +795,17 @@ function FullPreviewModal({ slides, currentIndex, onUpdateSlide, onUpdateAllSlid
             →
           </button>
 
-          <AnimatePresence mode="wait">
-            {/* The full-screen blocking spinner is removed to allow typing/reading while it updates, 
-                as the button itself now shows the loading state */}
+          <AnimatePresence mode="wait" custom={directionRef.current}>
             
             <motion.div
               key={currentIndex}
-              initial={{ x: 300, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ x: -300, opacity: 0 }}
-              transition={{ duration: 0.4, ease: "easeInOut" }}
+              custom={directionRef.current}
+              variants={makeSlideVariants(directionRef.current)}
+              initial="initial"
+              animate="animate"
+              exit="exit"
               className="relative w-full max-w-[100vw] sm:max-w-[98vw] aspect-[16/9] max-h-[100vh] sm:max-h-[90vh] shadow-[0_0_100px_rgba(0,0,0,0.8)] sm:rounded-3xl overflow-hidden ring-1 ring-white/10 flex flex-col"
+              style={{ willChange: "transform, opacity" }}
             >
               <AnimationEngine themeKey={template} isPreview={false} customBg={slide.bgColor}>
               <div className="absolute top-0 left-0 w-full h-2 z-10" style={{ background: fmtCol(tmpl.accent) }} />

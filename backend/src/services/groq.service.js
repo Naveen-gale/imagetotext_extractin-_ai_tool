@@ -323,7 +323,7 @@ export const simplifyConcept = async (text) => {
 export const generateKnowledgeGraph = async (text) => {
     try {
         const response = await callAiWithFallback({
-            model: "llama-3.3-70b-versatile",
+            model: "openai/gpt-oss-120b",
             messages: [
                 { role: "system", content: "You are a knowledge architect. Create a valid Mermaid.js mindmap diagram connecting the main ideas, entities, and concepts found in the provided text. Keep node names concise. Only output valid Mermaid syntax inside a ```mermaid ... ``` code block. Do NOT include any intro or outro text." },
                 { role: "user", content: `Generate a Mermaid mindmap for this:\n\n${text}` },
@@ -776,7 +776,7 @@ ${learningContext}
 
     const model = base64Image
         ? "meta-llama/llama-4-scout-17b-16e-instruct"
-        : "llama-3.3-70b-versatile";
+        : "openai/gpt-oss-120b";
 
     const response = await callAiWithFallback({
         model,
@@ -923,7 +923,7 @@ ${styleContext}${learningContext}${structureContext}`;
     for (let attempt = 0; attempt < 3; attempt++) {
         try {
             const response = await callAiWithFallback({
-                model: "llama-3.3-70b-versatile",
+                model: "openai/gpt-oss-120b",
                 messages: [
                     { role: "system", content: systemPrompt },
                     { role: "user", content: `Generate the presentation outline JSON for: ${topic}` },
@@ -1046,7 +1046,7 @@ export const generateNewInsertedSlide = async (topic, currentSlides, insertIndex
     - Respond strictly with JSON for ONE slide object.`;
 
     const response = await callAiWithFallback({
-        model: "llama-3.3-70b-versatile",
+        model: "openai/gpt-oss-120b",
         messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: "Generate the best slide to fit this context." },
@@ -1125,7 +1125,7 @@ ${styleContext}${learningContext}`;
     for (let attempt = 0; attempt < 3; attempt++) {
         try {
             const response = await callAiWithFallback({
-                model: "llama-3.3-70b-versatile",
+                model: "openai/gpt-oss-120b",
                 messages: [
                     { role: "system", content: systemPrompt },
                     { role: "user", content: `Generate the JSON for slide ${slideIndex + 1}: "${slideMeta.title}"` },
@@ -1183,7 +1183,7 @@ export const improveTextEngine = async (text, action) => {
     }
 
     const response = await callAiWithFallback({
-        model: "llama-3.3-70b-versatile",
+        model: "openai/gpt-oss-120b",
         messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: text },
@@ -1225,7 +1225,7 @@ ${JSON.stringify(currentSlides, null, 2)}
 Return the newly modified slides array as raw JSON.`;
 
     const response = await callAiWithFallback({
-        model: "llama-3.3-70b-versatile",
+        model: "openai/gpt-oss-120b",
         messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userMessage },
@@ -1286,7 +1286,7 @@ ${JSON.stringify(slide, null, 2)}
 Return the updated slide as a JSON object.`;
 
     const response = await callAiWithFallback({
-        model: "llama-3.3-70b-versatile",
+        model: "openai/gpt-oss-120b",
         messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userMessage },

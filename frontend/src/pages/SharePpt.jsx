@@ -8,6 +8,7 @@ import { generatePptx, TEMPLATES } from "../utils/pptGenerator";
 import { compileSlideToElements } from "../utils/templateCompiler";
 import AnimationEngine from "../animations/AnimationEngine";
 import { getReadableTextColor } from "../utils/textColor";
+import PptSwiper from "../components/PptSwiper";
 
 // ── Slide Renderer (standalone, used in both preview and thumbnail) ────────────
 function SlideViewInner({ slide, tmpl, small = false, index = 0, total = 1 }) {
@@ -910,35 +911,50 @@ export default function SharePpt() {
               }}
               onDoubleClick={() => setShowEditor(true)}
             >
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={currentIndex}
-                  initial={{ opacity:0, x:40 }}
-                  animate={{ opacity:1, x:0 }}
-                  exit={{ opacity:0, x:-40 }}
-                  transition={{ duration:0.22, ease:"easeOut" }}
-                  style={{ position:"absolute", inset:0 }}
-                >
-                  {slide && <SlideView slide={slide} tmpl={tmpl} small={false} index={currentIndex} total={total} />}
-                </motion.div>
-              </AnimatePresence>
+              {/* Swiper-powered slide transitions */}
+              <PptSwiper
+                slides={slides}
+                currentIndex={currentIndex}
+                onSlideChange={setCurrentIndex}
+                preset="creative"
+                allowTouch={true}
+                style={{ position: "absolute", inset: 0 }}
+                renderSlide={(s, idx, total) => (
+                  <SlideView
+                    slide={s}
+                    tmpl={tmpl}
+                    templateKey={data.template}
+                    small={false}
+                    index={idx}
+                    total={total}
+                  />
+                )}
+              />
 
-              {/* Fullscreen edit hint */}
+              {/* Fullscreen edit hint — rendered above the Swiper */}
               {isFullscreen && (
-                <div className="absolute top-3 right-3 flex gap-2">
+                <div className="absolute top-3 right-3 flex gap-2 z-20 pointer-events-auto">
                   <button onClick={() => setShowEditor(true)} className="px-3 py-1 bg-black/50 hover:bg-black/80 text-white text-xs font-bold rounded-lg backdrop-blur-sm">✏️ Edit</button>
                   <button onClick={toggleFullscreen} className="px-3 py-1 bg-black/50 hover:bg-black/80 text-white text-xs font-bold rounded-lg backdrop-blur-sm">✕ Exit</button>
                 </div>
               )}
 
-              {/* Prev/Next click zones */}
+              {/* Prev/Next click-zone overlays — sit above Swiper */}
               {!isFullscreen && currentIndex > 0 && (
-                <button onClick={() => setCurrentIndex(p => p - 1)} className="absolute left-0 top-0 bottom-0 w-12 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-gradient-to-r from-black/20 to-transparent group">
+                <button
+                  onClick={() => setCurrentIndex(p => Math.max(0, p - 1))}
+                  className="absolute left-0 top-0 bottom-0 w-12 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-gradient-to-r from-black/20 to-transparent group z-10"
+                  aria-label="Previous slide"
+                >
                   <div className="w-8 h-8 bg-black/50 rounded-full flex items-center justify-center text-white font-black group-hover:scale-110 transition-transform">‹</div>
                 </button>
               )}
               {!isFullscreen && currentIndex < total - 1 && (
-                <button onClick={() => setCurrentIndex(p => p + 1)} className="absolute right-0 top-0 bottom-0 w-12 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-gradient-to-l from-black/20 to-transparent group">
+                <button
+                  onClick={() => setCurrentIndex(p => Math.min(total - 1, p + 1))}
+                  className="absolute right-0 top-0 bottom-0 w-12 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-gradient-to-l from-black/20 to-transparent group z-10"
+                  aria-label="Next slide"
+                >
                   <div className="w-8 h-8 bg-black/50 rounded-full flex items-center justify-center text-white font-black group-hover:scale-110 transition-transform">›</div>
                 </button>
               )}
