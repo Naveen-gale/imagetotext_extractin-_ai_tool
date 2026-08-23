@@ -218,9 +218,9 @@ const PptSwiper = forwardRef(function PptSwiper(
       initialSlide={safeIndex}
       speed={speed}
       effect={effect}
-      // ── Effect params (spread only if defined) ────────────────────────────
-      {...(creativeEffect ? { creativeEffect } : {})}
-      {...(fadeEffect ? { fadeEffect } : {})}
+      // ── Effect params ─────────────────────────────────────────────────────
+      creativeEffect={creativeEffect}
+      fadeEffect={fadeEffect}
       // ── Touch / Swipe ─────────────────────────────────────────────────────
       allowTouchMove={allowTouch}
       touchRatio={1}
